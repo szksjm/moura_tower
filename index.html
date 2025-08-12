@@ -119,7 +119,16 @@
     const heightEl = document.getElementById('height');
     const countEl = document.getElementById('count');
     const statusEl = document.getElementById('status');
-    const toast = document.getElementById('toast');
+    $1
+    const builtinFiles = ['1.PNG','2.PNG','3.PNG','4.PNG','5.PNG','6.PNG','7.PNG'];
+    function preloadBuiltin(){
+      builtinFiles.forEach(name => {
+        const img = new Image();
+        img.onload = () => addToLibrary(name, img.naturalWidth, img.naturalHeight, 'builtin');
+        img.onerror = () => {};
+        img.src = name;
+      });
+    }
     function fitCanvas() {
       const w = wrap.clientWidth;
       const h = window.innerHeight;
@@ -138,7 +147,7 @@
     if (typeof decomp !== 'undefined') { Common.setDecomp(decomp); }
     const engine = Engine.create();
     const world = engine.world;
-    const render = Render.create({ canvas: cvs, engine, options: { wireframes: false, background: '透明', pixelRatio: (window.devicePixelRatio||1) } });
+    const render = Render.create({ canvas: cvs, engine, options: { wireframes: false, background: 'transparent', pixelRatio: (window.devicePixelRatio||1) } });
     Render.run(render);
     const runner = Runner.create();
     Runner.run(runner, engine);
@@ -166,8 +175,11 @@
     }
     function setStatus(msg) { statusEl.textContent = msg; }
     function showToast(msg) { toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=> toast.style.display='none', 1600); }
-    function addToLibrary(url, w, h, isUser = false) {
-      library.push({ url, w, h, user: isUser });
+    function addToLibrary(url, w, h, source = 'builtin') {
+      library.push({ url, w, h, source, user: source==='upload', builtin: source==='builtin' });
+      renderThumbs();
+      if (currentIndex === -1) selectIndex(0);
+    });
       renderThumbs();
       if (currentIndex === -1) selectIndex(0);
     }
@@ -190,7 +202,7 @@
         const fr = new FileReader();
         fr.onload = () => {
           const img = new Image();
-          img.onload = () => addToLibrary(fr.result, img.naturalWidth, img.naturalHeight, true);
+          img.onload = () => addToLibrary(fr.result, img.naturalWidth, img.naturalHeight, 'upload');
           img.src = fr.result;
         };
         fr.readAsDataURL(file);
@@ -304,11 +316,10 @@
     }
     async function dropPiece() {
       if (gameOver) return;
-      const users = library.filter(it => it.user);
-      if (!users.length) { showToast('先に画像を追加してください'); return; }
-      const pick = users[Math.floor(Math.random() * users.length)];
-      const itemIndex = library.indexOf(pick);
-      if (itemIndex >= 0) selectIndex(itemIndex);
+      const built = library.filter(it => it.builtin);
+      if (!built.length) { showToast('1.png〜7.png をリポジトリ直下に置いてください'); return; }
+      const pick = built[Math.floor(Math.random() * built.length)];
+      const idx = library.indexOf(pick); if (idx >= 0) selectIndex(idx);
       const item = pick;
       const sizeW = computeAutoSize(item);
       const ar = item.h > 0 ? (item.h / item.w) : 1;
@@ -328,7 +339,13 @@
       updateCounters();
     }
     dropBtn.addEventListener('click', () => dropPiece());
-    shuffleBtn.addEventListener('click', () => { const users = library.filter(it => it.user); if (!users.length) return showToast('まずは画像を追加してください'); const pick = users[Math.floor(Math.random() * users.length)]; const idx = library.indexOf(pick); if (idx >= 0) selectIndex(idx); });
+    shuffleBtn.addEventListener('click', () => {
+      const built = library.filter(it => it.builtin);
+      if (!built.length) return showToast('1.png〜7.png を配置してください');
+      const pick = built[Math.floor(Math.random() * built.length)];
+      const idx = library.indexOf(pick);
+      if (idx >= 0) selectIndex(idx);
+    });
     function updateCounters() {
       const bodies = Composite.allBodies(world).filter(b => !b.isStatic);
       countEl.textContent = bodies.length.toString();
@@ -371,7 +388,7 @@
       if (e.key === 'e' || e.key === 'E') { rotRange.value = (parseInt(rotRange.value,10) + 5).toString(); rotVal.textContent = rotRange.value; }
     });
     Events.on(engine, 'afterUpdate', () => { if (!gameOver) checkGameOver(); updateCounters(); });
-    function init() { fitCanvas(); buildBounds(); setPointer((cvs.width) / 2); setStatus('Ready'); }
+    function init() { fitCanvas(); buildBounds(); setPointer((cvs.width) / 2); setStatus('Ready'); preloadBuiltin(); }
     window.addEventListener('resize', () => { fitCanvas(); buildBounds(); });
     init();
     const mbar = document.getElementById('mobileControls');
