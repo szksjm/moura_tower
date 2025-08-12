@@ -160,7 +160,7 @@ let gameState = {
 };
 
 // 画像ファイル名
-const imageFiles = ['1.PNG', '2.PNG', '3.PNG', '4.PNG', '5.PNG', '6.PNG', '7.PNG', '8.PNG', '9.PNG'];
+const imageFiles = ['1.PNG', '2.PNG', '3.PNG', '4.PNG', '5.PNG', '6.PNG', '7.PNG', '8.PNG', '9.PNG', '10.PNG', '11.PNG', '12.PNG'];
 
 // 画像の最適サイズを計算する関数
 function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
@@ -389,68 +389,60 @@ function createHexagonPolygon(radius) {
 function preloadImages() {
     // デバッグ情報を表示
     console.log('画像ファイル読み込み開始:', imageFiles);
-    document.getElementById('loadingText').textContent = `画像を読み込み中... (0/${imageFiles.length})`;
+    document.getElementById('loadingText').textContent = `画像を読み込み中...`;
     
-    let loadedCount = 0;
-    
-    const loadingPromises = imageFiles.map((filename, index) => {
+    const loadingPromises = imageFiles.map(filename => {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                loadedCount++;
-                document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
                 console.log(`✓ 画像読み込み成功: ${filename}`);
                 
                 try {
                     // 最適なスケールを計算
                     const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
                     
-                    // 輪郭ポリゴンを生成
-                    const polygon = createPolygonFromImage({ image: img, scale: scale });
+                    // 輪郭ポリゴンを生成（非同期で処理）
+                    setTimeout(() => {
+                        try {
+                            const polygon = createPolygonFromImage({ image: img, scale: scale });
+                            
+                            gameState.loadedImages[filename] = {
+                                image: img,
+                                scale: scale,
+                                width: img.width * scale,
+                                height: img.height * scale,
+                                polygon: polygon
+                            };
+                            resolve();
+                        } catch (polygonError) {
+                            console.warn(`ポリゴン生成エラー ${filename}:`, polygonError);
+                            // フォールバック: 矩形ポリゴン
+                            gameState.loadedImages[filename] = {
+                                image: img,
+                                scale: scale,
+                                width: img.width * scale,
+                                height: img.height * scale,
+                                polygon: [
+                                    { x: -(img.width * scale)/2, y: -(img.height * scale)/2 },
+                                    { x: (img.width * scale)/2, y: -(img.height * scale)/2 },
+                                    { x: (img.width * scale)/2, y: (img.height * scale)/2 },
+                                    { x: -(img.width * scale)/2, y: (img.height * scale)/2 }
+                                ]
+                            };
+                            resolve();
+                        }
+                    }, 10); // 少し遅延させて他の処理に時間を与える
                     
-                    gameState.loadedImages[filename] = {
-                        image: img,
-                        scale: scale,
-                        width: img.width * scale,
-                        height: img.height * scale,
-                        polygon: polygon
-                    };
-                    resolve();
                 } catch (error) {
                     console.warn(`画像処理エラー ${filename}:`, error);
-                    // エラーが起きても最低限の情報を保存
-                    gameState.loadedImages[filename] = {
-                        image: img,
-                        scale: 1,
-                        width: img.width,
-                        height: img.height,
-                        polygon: [
-                            { x: -img.width/2, y: -img.height/2 },
-                            { x: img.width/2, y: -img.height/2 },
-                            { x: img.width/2, y: img.height/2 },
-                            { x: -img.width/2, y: img.height/2 }
-                        ]
-                    };
-                    resolve();
+                    reject(error);
                 }
             };
             
             img.onerror = (error) => {
                 console.warn(`✗ 画像の読み込みに失敗: ${filename}`, error);
-                loadedCount++;
-                document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
                 reject(new Error(`Failed to load ${filename}`));
             };
-            
-            // タイムアウト設定（5秒）
-            setTimeout(() => {
-                if (!img.complete) {
-                    console.warn(`✗ 画像読み込みタイムアウト: ${filename}`);
-                    loadedCount++;
-                    document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
-                    reject(new Error(`Timeout loading ${filename}`));
-                }
-            }, 5000);
             
             img.src = filename;
         });
@@ -462,7 +454,7 @@ function preloadImages() {
         
         console.log(`画像読み込み完了: ${successful}/${imageFiles.length} 成功`);
         if (failed.length > 0) {
-            console.log('失敗した画像:', failed.map(f => f.reason.message));
+            console.log('失敗した画像:', failed.map(f => f.reason?.message || 'Unknown error'));
         }
         
         // 最低1つでも読み込めていればOK
