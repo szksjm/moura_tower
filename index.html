@@ -778,4 +778,18 @@ async function startGame() {
             initializeGame();
             
             console.log('ゲームが開始されました！');
-            console.log('操作: 矢印キー/WASD で移動・回転、ス
+            console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
+            console.log('⚠️ 動物が土台のラインより下に落ちるとゲームオーバーです！');
+        } else {
+            document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～7.PNG）を確認してください。';
+            document.getElementById('loadingText').style.color = '#ff0000';
+        }
+    } catch (error) {
+        console.error('ゲーム初期化エラー:', error);
+        document.getElementById('loadingText').textContent = 'ゲームの初期化に失敗しました。';
+        document.getElementById('loadingText').style.color = '#ff0000';
+    }
+}
+
+// ページ読み込み完了後にゲーム開始
+window.addEventListener('load', startGame);
