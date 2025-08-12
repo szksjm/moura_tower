@@ -1,99 +1,431 @@
-アップロードボタン機能を削除するため、コード全体を書き直しました。以下の点を適用しています。
-
-- 「画像追加」ボタンおよび関連処理を削除
-- `1.png`〜`7.png`のみを対象としたプリロード
-- プリロード後、配列からランダムに選択してゲーム進行
-- UIから画像追加に関する操作要素を完全に排除
-
-```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Custom Tower Game</title>
-<style>
-  body { margin: 0; background: #eef; }
-  canvas { display: block; margin: auto; background: #ccf; }
-  #controls { display: flex; justify-content: center; gap: 10px; margin: 5px; }
-  button { font-size: 18px; padding: 5px 10px; }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>動物タワーバトル（輪郭物理対応・自作画像）</title>
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif; }
+    .app { display: grid; grid-template-columns: 320px 1fr; height: 100%; }
+    @media (max-width: 920px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel { position: sticky; top: 0; z-index: 10; }
+    }
+    .panel { background: #0f172a; color: #e2e8f0; padding: 14px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid #1f2937; }
+    .panel h1 { font-size: 18px; margin: 0; }
+    .panel small { color: #94a3b8; }
+    .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 240px; overflow: auto; padding-right: 4px; }
+    .thumb { position: relative; aspect-ratio: 1 / 1; border: 1px solid #334155; border-radius: 10px; overflow: hidden; cursor: pointer; background:#0b1220; }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .thumb.active { outline: 2px solid #22d3ee; }
+    .controls label { display: block; font-size: 12px; color: #cbd5e1; margin-bottom: 6px; }
+    .controls input[type="range"], .controls input[type="number"] { width: 100%; }
+    .btn { background: #22c55e; color: #052e16; border: none; padding: 10px 12px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+    .btn.secondary { background: #334155; color: #e2e8f0; }
+    .btn.danger { background: #ef4444; color: white; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .kbd { padding: 2px 6px; border-radius: 6px; border: 1px solid #475569; background: #0b1220; color: #e2e8f0; font-size: 12px; }
+    .stage-wrap { position: relative; background: linear-gradient(#0b1220, #0f172a); }
+    #stage { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; inset: 0; pointer-events: none; display: flex; justify-content: space-between; }
+    .hud-left { color: #e2e8f0; padding: 10px; font-weight: 700; text-shadow: 0 1px 0 #000; }
+    .hud-right { color: #e2e8f0; padding: 10px; text-align: right; }
+    .toast { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; background: rgba(15, 23, 42, 0.7); color: #e2e8f0; padding: 8px 12px; border-radius: 10px; border: 1px solid #334155; font-weight: 600; }
+    .gantry { position:absolute; top:0; left:0; right:0; height: 28px; border-bottom: 2px dashed #334155; pointer-events: none; }
+    .drop-pointer { position:absolute; width: 12px; height: 12px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 10px #22d3ee; pointer-events: none; }
+    .footer { font-size: 12px; color:#94a3b8; }
+  </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="400" height="600"></canvas>
-<div id="controls">
-  <button id="leftBtn">←</button>
-  <button id="rightBtn">→</button>
-  <button id="rotateLeftBtn">⟲</button>
-  <button id="rotateRightBtn">⟳</button>
-  <button id="dropBtn">落とす</button>
-  <button id="resetBtn">R</button>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-<script>
-const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
-const canvas = document.getElementById('gameCanvas');
-const engine = Engine.create();
-const render = Render.create({
-    canvas: canvas,
-    engine: engine,
-    options: { width: canvas.width, height: canvas.height, wireframes: false, background: '#ccf' }
-});
+  <div class="app">
+    <aside class="panel">
+      <h1>動物タワーバトル（輪郭物理対応）</h1>
+      <small>リポジトリ直下の 1.png〜7.png を使って遊べます。</small>
 
-const groundWidth = canvas.width * 0.66;
-const groundHeight = 20;
-const ground = Bodies.rectangle(canvas.width / 2, canvas.height - groundHeight / 2, groundWidth, groundHeight, {
-    isStatic: true, render: { fillStyle: '#964B00' }, friction: 1, frictionStatic: 1
-});
-Composite.add(engine.world, ground);
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <strong>使用画像（1.png〜7.png）</strong>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
 
-const imageFiles = ['1.PNG','2.PNG','3.PNG','4.PNG','5.PNG','6.PNG','7.PNG'];
-let currentBody = null;
-let isDropping = false;
+      <div class="controls">
+        <label>ピース幅（自動）：<span id="sizeVal">—</span> px</label>
+        <input id="pieceSize" type="range" min="60" max="240" value="120" disabled />
+        <label>回転：<span id="rotVal">0</span>°</label>
+        <input id="rotation" type="range" min="-90" max="90" value="0" />
+        <label>輪郭しきい値（α）：<span id="thrVal">28</span></label>
+        <input id="alphaThr" type="range" min="0" max="64" value="28" />
+        <label>輪郭簡略化（ε）：<span id="epsVal">1.0</span></label>
+        <input id="epsilon" type="range" min="0.5" max="4" step="0.1" value="1.0" />
+      </div>
 
-function createRandomBody() {
-    const imgFile = imageFiles[Math.floor(Math.random() * imageFiles.length)];
-    const img = new Image();
-    img.src = imgFile;
-    img.onload = () => {
-        const scale = (Math.random() * 0.16) + 0.18;
-        const width = img.width * scale;
-        const height = img.height * scale;
-        const body = Bodies.rectangle(canvas.width / 2, 50, width, height, {
-            friction: 0.65, frictionStatic: 0.9, restitution: 0.02,
-            render: { sprite: { texture: imgFile, xScale: scale, yScale: scale } }
-        });
-        currentBody = body;
-        Composite.add(engine.world, body);
-    };
-}
+      <div class="row">
+        <button class="btn" id="dropBtn">落とす（<span class="kbd">Space</span>）</button>
+        <button class="btn secondary" id="shuffleBtn">ランダム選択</button>
+        <button class="btn danger" id="resetBtn">リスタート（<span class="kbd">R</span>）</button>
+      </div>
 
-function dropCurrentBody() {
-    if (currentBody) isDropping = true;
-}
+      <div class="row">
+        <span class="kbd">←</span><span class="kbd">→</span>：落下位置 / <span class="kbd">Q</span>/<span class="kbd">E</span>：回転±5°
+      </div>
 
-Events.on(engine, 'beforeUpdate', () => {
-    if (currentBody && !isDropping) Body.setVelocity(currentBody, { x: 0, y: 0 });
-    if (currentBody && isDropping) {
-        currentBody = null;
-        isDropping = false;
-        setTimeout(createRandomBody, 500);
+      <div class="footer">
+        ルール：下に落ちたら<span style="color:#f87171">ゲームオーバー</span>。しきい値は背景の透け具合に合わせて調整してください。
+      </div>
+    </aside>
+
+    <main class="stage-wrap" id="stageWrap">
+      <div class="gantry"></div>
+      <div class="drop-pointer" id="pointer" style="opacity:0.9"></div>
+      <canvas id="stage"></canvas>
+
+      <div class="hud">
+        <div class="hud-left">
+          高さ：<span id="height">0</span> px<br/>
+          ピース数：<span id="count">0</span>
+        </div>
+        <div class="hud-right">
+          状態：<span id="status">Ready</span>
+        </div>
+      </div>
+      <div class="toast" id="toast" style="display:none"></div>
+    </main>
+  </div>
+
+  <div id="mobileControls" class="row" style="position:fixed; left:0; right:0; bottom:0; gap:10px; padding:10px; background:rgba(2,6,23,.8); backdrop-filter: blur(6px); display:none; justify-content:center;">
+    <button class="btn secondary" id="mLeft">←</button>
+    <button class="btn secondary" id="mRight">→</button>
+    <button class="btn secondary" id="mRotL">⟲</button>
+    <button class="btn secondary" id="mRotR">⟳</button>
+    <button class="btn" id="mDrop">落とす</button>
+    <button class="btn danger" id="mReset">R</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/poly-decomp@0.3.0"></script>
+  <script>
+    const $ = (q) => document.querySelector(q);
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const rad = (deg) => deg * Math.PI / 180;
+
+    const cvs = document.getElementById('stage');
+    const wrap = document.getElementById('stageWrap');
+    const pointer = document.getElementById('pointer');
+    const thumbs = document.getElementById('thumbs');
+
+    const pieceSizeRange = document.getElementById('pieceSize');
+    const rotRange = document.getElementById('rotation');
+    const thrRange = document.getElementById('alphaThr');
+    const epsRange = document.getElementById('epsilon');
+    const sizeVal = document.getElementById('sizeVal');
+    const rotVal = document.getElementById('rotVal');
+    const thrVal = document.getElementById('thrVal');
+    const epsVal = document.getElementById('epsVal');
+    const dropBtn = document.getElementById('dropBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const heightEl = document.getElementById('height');
+    const countEl = document.getElementById('count');
+    const statusEl = document.getElementById('status');
+    const toast = document.getElementById('toast');
+
+    function fitCanvas() {
+      const w = wrap.clientWidth;
+      const h = window.innerHeight;
+      cvs.width = w;
+      cvs.height = h;
+      cvs.style.width = w + 'px';
+      cvs.style.height = h + 'px';
+      if (render) {
+        render.options.width = w;
+        render.options.height = h;
+      }
+      floorY = h - 28;
+      setPointer(pointerX);
     }
-});
 
-document.getElementById('leftBtn').onclick = () => { if (currentBody) Body.translate(currentBody, {x: -10, y: 0}); };
-document.getElementById('rightBtn').onclick = () => { if (currentBody) Body.translate(currentBody, {x: 10, y: 0}); };
-document.getElementById('rotateLeftBtn').onclick = () => { if (currentBody) Body.rotate(currentBody, -Math.PI / 18); };
-document.getElementById('rotateRightBtn').onclick = () => { if (currentBody) Body.rotate(currentBody, Math.PI / 18); };
-document.getElementById('dropBtn').onclick = dropCurrentBody;
-document.getElementById('resetBtn').onclick = () => location.reload();
+    const { Engine, Render, Runner, World, Bodies, Body, Events, Composite, Common } = Matter;
+    if (typeof decomp !== 'undefined') { Common.setDecomp(decomp); }
 
-Render.run(render);
-const runner = Runner.create();
-Runner.run(runner, engine);
+    const engine = Engine.create();
+    const world = engine.world;
+    const render = Render.create({ canvas: cvs, engine, options: { wireframes: false, background: 'transparent', pixelRatio: (window.devicePixelRatio||1) } });
+    Render.run(render);
+    const runner = Runner.create();
+    Runner.run(runner, engine);
 
-createRandomBody();
-</script>
+    let floorY = 0;
+    let ground, baseLeft, baseRight;
+
+    function buildBounds() {
+      const W = cvs.width;
+      const H = cvs.height;
+      if (ground) Composite.remove(world, ground, true);
+      const baseW = Math.max(120, Math.round(W * 0.66));
+      ground = Bodies.rectangle(W/2, H - 8, baseW, 16, { isStatic: true, friction: 1, frictionStatic: 1, restitution: 0, render: { fillStyle: '#1e293b' }});
+      baseLeft = (W/2) - baseW/2;
+      baseRight = (W/2) + baseW/2;
+      World.add(world, ground);
+    }
+
+    let library = [];
+    let currentIndex = -1;
+    let pointerX = 240;
+    let gameOver = false;
+
+    function setPointer(x) {
+      const W = cvs.width;
+      pointerX = clamp(x, 40, W - 40);
+      pointer.style.left = (pointerX - 6) + 'px';
+      pointer.style.top = '8px';
+    }
+    function setStatus(msg) { statusEl.textContent = msg; }
+    function showToast(msg) { toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=> toast.style.display='none', 1600); }
+
+    function addToLibrary(url, w, h, source = 'builtin') {
+      library.push({ url, w, h, source, builtin: source==='builtin' });
+      renderThumbs();
+      if (currentIndex === -1) selectIndex(0);
+    }
+
+    function renderThumbs() {
+      thumbs.innerHTML = '';
+      library.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'thumb' + (i === currentIndex ? ' active' : '');
+        const img = document.createElement('img');
+        img.src = item.url; div.appendChild(img);
+        div.onclick = () => selectIndex(i);
+        thumbs.appendChild(div);
+      });
+    }
+    function selectIndex(i) { currentIndex = i; renderThumbs(); setStatus(`選択中：#${i+1}`); }
+
+    function loadImage(src) { return new Promise((res, rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
+
+    function simplifyRDP(points, epsilon) {
+      if (points.length < 3) return points;
+      const {d, index} = maxDistance(points);
+      if (d > epsilon) {
+        const r1 = simplifyRDP(points.slice(0, index+1), epsilon);
+        const r2 = simplifyRDP(points.slice(index), epsilon);
+        return r1.slice(0, -1).concat(r2);
+      } else {
+        return [points[0], points[points.length-1]];
+      }
+    }
+    function maxDistance(points) {
+      const a = points[0], b = points[points.length-1];
+      let maxD=-1, idx=0;
+      for (let i=1;i<points.length-1;i++) {
+        const d = perp(points[i], a, b);
+        if (d>maxD) { maxD=d; idx=i; }
+      }
+      return { d:maxD, index: idx };
+    }
+    function perp(p, a, b) {
+      const num = Math.abs((b.y-a.y)*p.x - (b.x-a.x)*p.y + b.x*a.y - b.y*a.x);
+      const den = Math.hypot(b.y-a.y, b.x-a.x) || 1;
+      return num/den;
+    }
+    function erode(solid, w, h, iterations) {
+      const nbh = [[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0],[-1,1],[0,1],[1,1]];
+      for (let it=0; it<iterations; it++) {
+        const copy = solid.slice();
+        for (let y=0; y<h; y++) {
+          for (let x=0; x<w; x++) {
+            let keep = 1;
+            for (let k=0;k<nbh.length;k++) {
+              const nx = x+nbh[k][0], ny = y+nbh[k][1];
+              if (nx<0||nx>=w||ny<0||ny>=h||copy[ny*w+nx]===0) { keep = 0; break; }
+            }
+            solid[y*w+x] = keep;
+          }
+        }
+      }
+    }
+
+    async function buildPolygonBodyFromImage(item, x, y, targetW, targetH, angleRad, alphaThreshold, epsilon) {
+      const img = await loadImage(item.url);
+      const off = document.createElement('canvas');
+      off.width = Math.max(2, Math.round(targetW));
+      off.height = Math.max(2, Math.round(targetH));
+      const oc = off.getContext('2d');
+      oc.imageSmoothingEnabled = true;
+      oc.clearRect(0,0,off.width,off.height);
+      oc.drawImage(img, 0, 0, off.width, off.height);
+
+      const imgData = oc.getImageData(0, 0, off.width, off.height);
+      const gridW = off.width, gridH = off.height;
+
+      const solid = new Uint8Array(gridW * gridH);
+      for (let j=0;j<gridH;j++) {
+        for (let i=0;i<gridW;i++) {
+          const idx = (j*gridW + i) * 4 + 3;
+          solid[j*gridW+i] = imgData.data[idx] > alphaThreshold ? 1 : 0;
+        }
+      }
+      erode(solid, gridW, gridH, 2);
+
+      let sx=-1, sy=-1;
+      outer: for (let j=0;j<gridH;j++) { for (let i=0;i<gridW;i++) { if (solid[j*gridW+i]) { sx=i; sy=j; break outer; } } }
+      if (sx<0) return null;
+
+      const dirs = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+      let cx = sx, cy = sy, bi = 0;
+      const contour = [];
+      let loopGuard = 0, first = true;
+      do {
+        contour.push([cx, cy]);
+        let moved = false;
+        for (let k=0;k<8;k++) {
+          const d = dirs[(bi + k) % 8];
+          const nx = cx + d[0];
+          const ny = cy + d[1];
+          if (nx>=0 && nx<gridW && ny>=0 && ny<gridH && solid[ny*gridW+nx]) {
+            cx = nx; cy = ny; bi = (bi + k + 6) % 8;
+            moved = true; break;
+          }
+        }
+        if (!moved) bi = (bi + 1) % 8;
+        loopGuard++;
+        if (loopGuard > gridW*gridH*4) break;
+        if (!first && cx===sx && cy===sy) break;
+        first = false;
+      } while (true);
+
+      const step = Math.max(1, Math.floor(contour.length / 100));
+      let pts = contour.filter((_,i)=> i%step===0).map(p=>({ x: p[0] - gridW/2, y: p[1] - gridH/2 }));
+      if (pts.length < 3) return null;
+      pts = simplifyRDP(pts, epsilon);
+
+      const body = Bodies.fromVertices(x, y, [pts], {
+        render: { sprite: { texture: item.url, xScale: (targetW) / item.w, yScale: (targetH) / item.h } },
+        friction: 0.65, frictionStatic: 0.9, frictionAir: 0.02, restitution: 0.02, density: 0.0016,
+      }, true);
+      if (!body) return null;
+      Body.rotate(body, angleRad);
+      return body;
+    }
+
+    function computeAutoSize(item){
+      const baseW = (ground && ground.bounds) ? (ground.bounds.max.x - ground.bounds.min.x) : cvs.width*0.66;
+      const minW = baseW / 5.0;   // 土台に最大5つ
+      const maxW = baseW / 3.0;   // 土台に最小3つ
+      const w = minW + (maxW - minW) * Math.random();
+      return Math.max(40, Math.round(w));
+    }
+
+    async function dropPiece() {
+      if (gameOver) return;
+      const built = library.filter(it => it.builtin);
+      if (!built.length) { showToast('1.png〜7.png をルートに配置してください'); return; }
+
+      const pick = built[Math.floor(Math.random() * built.length)];
+      const itemIndex = library.indexOf(pick);
+      if (itemIndex >= 0) selectIndex(itemIndex);
+
+      const item = pick;
+      const sizeW = computeAutoSize(item);
+      const ar = item.h > 0 ? (item.h / item.w) : 1;
+      const sizeH = Math.max(30, Math.round(sizeW * ar));
+      pieceSizeRange.value = String(Math.round(sizeW));
+      sizeVal.textContent = pieceSizeRange.value;
+
+      const x = pointerX; const y = 40; const angle = rad(parseInt(rotRange.value, 10));
+      const alphaThreshold = parseInt(thrRange.value, 10);
+      const epsilon = parseFloat(epsRange.value);
+
+      let body = await buildPolygonBodyFromImage(item, x, y, sizeW, sizeH, angle, alphaThreshold, epsilon);
+      if (!body) {
+        body = Bodies.rectangle(x, y, sizeW, sizeH, { chamfer: { radius: 8 }, render: { sprite: { texture: item.url, xScale: (sizeW) / item.w, yScale: (sizeH) / item.h } }, friction: 0.65, frictionStatic: 0.9, frictionAir: 0.02, restitution: 0.02, density: 0.0016 });
+        Body.rotate(body, angle);
+      }
+      World.add(world, body);
+      setStatus('落下！');
+      updateCounters();
+    }
+
+    shuffleBtn.addEventListener('click', () => {
+      const built = library.filter(it => it.builtin);
+      if (!built.length) return showToast('1.png〜7.png を配置してください');
+      const pick = built[Math.floor(Math.random() * built.length)];
+      const idx = library.indexOf(pick);
+      if (idx >= 0) selectIndex(idx);
+    });
+
+    function updateCounters() {
+      const bodies = Composite.allBodies(world).filter(b => !b.isStatic);
+      countEl.textContent = bodies.length.toString();
+      const H = cvs.height;
+      if (!bodies.length) { heightEl.textContent = '0'; return; }
+      let minY = Infinity;
+      bodies.forEach(b => b.vertices.forEach(v => { if (v.y < minY) minY = v.y; }));
+      const height = Math.max(0, Math.round((H - 8) - minY));
+      heightEl.textContent = height.toString();
+    }
+
+    function checkGameOver() {
+      if (gameOver) return;
+      const H = cvs.height;
+      const bodies = Composite.allBodies(world).filter(b => !b.isStatic);
+      for (const b of bodies) {
+        const x = b.position.x;
+        const y = b.position.y;
+        if ((x < baseLeft - 20 || x > baseRight + 20) && y > ground.position.y + 20) { gameOver = true; setStatus('Game Over'); showToast('土台から落ちました！ Rで再開'); break; }
+        if (y > H + 100) { gameOver = true; setStatus('Game Over'); showToast('落下！ Rで再開'); break; }
+      }
+    }
+
+    sizeVal.textContent = 'auto';
+    rotVal.textContent = rotRange.value;
+    rotRange.addEventListener('input', () => rotVal.textContent = rotRange.value);
+    thrVal.textContent = thrRange.value; thrRange.addEventListener('input', ()=> thrVal.textContent = thrRange.value);
+    epsVal.textContent = epsRange.value; epsRange.addEventListener('input', ()=> epsVal.textContent = epsRange.value);
+
+    function resetGame() {
+      const toRemove = Composite.allBodies(world).filter(b => !b.isStatic);
+      World.remove(world, toRemove);
+      gameOver = false; setStatus('Ready'); updateCounters(); showToast('リセットしました');
+    }
+    resetBtn.addEventListener('click', resetGame);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') { e.preventDefault(); dropPiece(); }
+      if (e.key === 'r' || e.key === 'R') resetGame();
+      if (e.key === 'ArrowLeft') setPointer(pointerX - 18);
+      if (e.key === 'ArrowRight') setPointer(pointerX + 18);
+      if (e.key === 'q' || e.key === 'Q') { rotRange.value = (parseInt(rotRange.value,10) - 5).toString(); rotVal.textContent = rotRange.value; }
+      if (e.key === 'e' || e.key === 'E') { rotRange.value = (parseInt(rotRange.value,10) + 5).toString(); rotVal.textContent = rotRange.value; }
+    });
+
+    Events.on(engine, 'afterUpdate', () => { if (!gameOver) checkGameOver(); updateCounters(); });
+
+    const builtinFiles = ['1.png','2.png','3.png','4.png','5.png','6.png','7.png'];
+    function preloadBuiltin(){
+      builtinFiles.forEach(name => {
+        const img = new Image();
+        img.onload = () => addToLibrary(name, img.naturalWidth, img.naturalHeight, 'builtin');
+        img.src = name;
+      });
+    }
+
+    function init() { fitCanvas(); buildBounds(); setPointer((cvs.width) / 2); setStatus('Ready'); preloadBuiltin(); }
+    window.addEventListener('resize', () => { fitCanvas(); buildBounds(); });
+    init();
+
+    const mbar = document.getElementById('mobileControls');
+    function checkMobileUI(){ if (window.innerWidth <= 920) { mbar.style.display='flex'; } else { mbar.style.display='none'; } }
+    checkMobileUI();
+    window.addEventListener('resize', checkMobileUI);
+    wrap.addEventListener('touchstart', (e)=>{ if(e.touches.length>0){ const t=e.touches[0]; setPointer(t.clientX); } }, {passive:true});
+    wrap.addEventListener('touchmove', (e)=>{ if(e.touches.length>0){ const t=e.touches[0]; setPointer(t.clientX); } }, {passive:true});
+    wrap.addEventListener('touchend', ()=>{ dropPiece(); }, {passive:true});
+    document.getElementById('mLeft').addEventListener('click', ()=> setPointer(pointerX - 24));
+    document.getElementById('mRight').addEventListener('click', ()=> setPointer(pointerX + 24));
+    document.getElementById('mRotL').addEventListener('click', ()=> { rotRange.value = (parseInt(rotRange.value,10) - 5).toString(); rotVal.textContent = rotRange.value; });
+    document.getElementById('mRotR').addEventListener('click', ()=> { rotRange.value = (parseInt(rotRange.value,10) + 5).toString(); rotVal.textContent = rotRange.value; });
+    document.getElementById('mDrop').addEventListener('click', dropPiece);
+    document.getElementById('mReset').addEventListener('click', resetGame);
+  </script>
 </body>
 </html>
-```
