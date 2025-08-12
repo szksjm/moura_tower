@@ -92,7 +92,7 @@
 <body>
 <div id="gameContainer">
   <div id="gameInfo">
-    <div>かんぴろくんタワーバトル</div>
+    <div>動物タワーバトル</div>
     <div id="scoreDisplay">スコア: 0</div>
     <div id="loadingText" class="loading">画像を読み込み中...</div>
     <div id="gameOverText" style="display: none; color: #ff0000; font-size: 24px; font-weight: bold;">ゲームオーバー！</div>
@@ -127,7 +127,7 @@ const GAME_CONFIG = {
         gravity: 0.5,
         friction: 0.7,
         frictionStatic: 0.9,
-        restitution: 0.1  // 跳ね返りを小さく（0.2 → 0.1）
+        restitution: 0.2
     },
     animal: {
         targetSize: 90,  // 目標サイズ（ピクセル）1.5倍に
@@ -365,14 +365,14 @@ function checkGameOver() {
     if (gameState.gameOver) return;
     
     const bodies = Composite.allBodies(gameState.engine.world);
-    const groundY = GAME_CONFIG.canvas.height - GAME_CONFIG.ground.height; // 地面の上端位置
+    const groundY = GAME_CONFIG.canvas.height - GAME_CONFIG.ground.height;
     
     // 地面より下に落ちた動物がいるかチェック
     for (let body of bodies) {
-        if (body.isStatic) continue; // 地面は除外
+        if (body.isStatic) continue; // 地面や壁は除外
         
-        // ボディの下端が地面の上端より下にあるかチェック
-        if (body.bounds.max.y > groundY) {
+        // ボディの下端が地面より下にあるかチェック
+        if (body.bounds.max.y > groundY + 50) { // 余裕をもたせて50px下
             triggerGameOver();
             return;
         }
@@ -406,10 +406,7 @@ function triggerGameOver() {
         resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
         resetBtn.style.color = 'white';
         resetBtn.textContent = '🔄 もう一度プレイ';
-        // ゲームオーバー時でもリセットボタンは操作可能にする
-        resetBtn.style.pointerEvents = 'auto';
-        resetBtn.style.opacity = '1';
-    }, 1000);
+    }, 3000);
 }
 
 // スコアを更新する関数
@@ -439,54 +436,6 @@ function optimizedRender() {
             gameState.lastRenderTime = now;
         }
     }
-}
-
-// ゲーム状態をリセットする関数
-function resetGame() {
-    // アニメーションフレームをクリア
-    if (gameState.animationFrame) {
-        cancelAnimationFrame(gameState.animationFrame);
-    }
-    
-    // エンジンとレンダラーを停止・破棄
-    if (gameState.runner) {
-        Runner.stop(gameState.runner);
-    }
-    if (gameState.render) {
-        Render.stop(gameState.render);
-    }
-    if (gameState.engine) {
-        Engine.clear(gameState.engine);
-    }
-    
-    // ゲーム状態をリセット
-    gameState.engine = null;
-    gameState.render = null;
-    gameState.runner = null;
-    gameState.currentBody = null;
-    gameState.isDropping = false;
-    gameState.gameOver = false;
-    gameState.score = 0;
-    gameState.lastInputTime = 0;
-    gameState.animationFrame = null;
-    
-    // UI要素をリセット
-    document.getElementById('gameOverText').style.display = 'none';
-    document.getElementById('controls').classList.remove('game-over');
-    document.getElementById('scoreDisplay').textContent = 'スコア: 0';
-    
-    // リセットボタンの見た目を元に戻す
-    const resetBtn = document.getElementById('resetBtn');
-    resetBtn.style.background = 'linear-gradient(145deg, #FFE4B5, #F0E68C)';
-    resetBtn.style.color = '';
-    resetBtn.textContent = '🔄 リセット';
-    resetBtn.style.pointerEvents = '';
-    resetBtn.style.opacity = '';
-    
-    // ゲームを再初期化
-    initializeGame();
-    
-    console.log('ゲームがリセットされました');
 }
 
 // ゲームエンジンの初期化
@@ -527,8 +476,12 @@ function initializeGame() {
         }
     );
     
-    // 左右の見えない壁は削除（動物が画面外に落ちることを許可）
-    Composite.add(gameState.engine.world, [ground]);
+    // 左右の見えない壁を追加（動物が画面外に落ちないように）
+    const wallThickness = 10;
+    const leftWall = Bodies.rectangle(-wallThickness/2, GAME_CONFIG.canvas.height/2, wallThickness, GAME_CONFIG.canvas.height, { isStatic: true, render: { visible: false } });
+    const rightWall = Bodies.rectangle(GAME_CONFIG.canvas.width + wallThickness/2, GAME_CONFIG.canvas.height/2, wallThickness, GAME_CONFIG.canvas.height, { isStatic: true, render: { visible: false } });
+    
+    Composite.add(gameState.engine.world, [ground, leftWall, rightWall]);
     
     // ランナーの作成と開始（FPS制限）
     gameState.runner = Runner.create();
@@ -624,9 +577,10 @@ function setupEventListeners() {
         // 落下していない場合は重力を無効化（宙に浮かせる）
         if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
             Body.setVelocity(gameState.currentBody, { x: 0, y: 0 });
-            // 画面端での位置制限を削除（画面外に出ることを許可）
             Body.setPosition(gameState.currentBody, {
-                x: gameState.currentBody.position.x,
+                x: Math.max(gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x, 
+                          Math.min(GAME_CONFIG.canvas.width - (gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x), 
+                                  gameState.currentBody.position.x)),
                 y: gameState.currentBody.position.y
             });
         }
@@ -681,8 +635,13 @@ function setupEventListeners() {
     
     document.getElementById('dropBtn').onclick = dropCurrentAnimal;
     
-    // リセットボタンの処理を修正
-    document.getElementById('resetBtn').onclick = resetGame;
+    document.getElementById('resetBtn').onclick = () => {
+        // アニメーションフレームをクリア
+        if (gameState.animationFrame) {
+            cancelAnimationFrame(gameState.animationFrame);
+        }
+        location.reload();
+    };
     
     // タッチイベント（スマホ対応）
     let touchHandlers = {};
@@ -779,7 +738,7 @@ async function startGame() {
             
             console.log('ゲームが開始されました！');
             console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
-            console.log('⚠️ 動物が土台のラインより下に落ちるとゲームオーバーです！');
+            console.log('⚠️ 動物が土台から落ちるとゲームオーバーです！');
         } else {
             document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～7.PNG）を確認してください。';
             document.getElementById('loadingText').style.color = '#ff0000';
@@ -793,3 +752,6 @@ async function startGame() {
 
 // ページ読み込み完了後にゲーム開始
 window.addEventListener('load', startGame);
+</script>
+</body>
+</html>
