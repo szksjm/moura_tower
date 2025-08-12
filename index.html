@@ -70,6 +70,17 @@
     color: #333;
   }
   
+  #scoreDisplay {
+    font-size: 18px;
+    color: #2E8B57;
+    margin: 5px 0;
+  }
+  
+  .game-over {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  
   .loading {
     text-align: center;
     font-size: 18px;
@@ -81,8 +92,10 @@
 <body>
 <div id="gameContainer">
   <div id="gameInfo">
-    <div>ちもうらタワーバトル</div>
+    <div>かんぴろくんタワーバトル</div>
+    <div id="scoreDisplay">スコア: 0</div>
     <div id="loadingText" class="loading">画像を読み込み中...</div>
+    <div id="gameOverText" style="display: none; color: #ff0000; font-size: 24px; font-weight: bold;">ゲームオーバー！</div>
   </div>
   <canvas id="gameCanvas" width="400" height="600"></canvas>
   <div id="controls" style="display: none;">
@@ -106,7 +119,7 @@ const GAME_CONFIG = {
         height: 600
     },
     ground: {
-        widthRatio: 0.7,
+        widthRatio: 0.56,  // 0.7 * 0.8 = 0.56
         height: 25,
         color: '#8B4513'
     },
@@ -141,7 +154,9 @@ let gameState = {
     imagesLoaded: false,
     loadedImages: {},
     lastInputTime: 0,
-    animationFrame: null
+    animationFrame: null,
+    gameOver: false,
+    score: 0
 };
 
 // 画像ファイル名
@@ -175,6 +190,140 @@ function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
     return scale;
 }
 
+// 画像から輪郭を抽出してポリゴンを生成する関数
+function createPolygonFromImage(imageData, threshold = 128) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = imageData.image;
+    const scale = imageData.scale;
+    
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    
+    const imgDataPixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imgDataPixels.data;
+    
+    // 輪郭点を抽出
+    const contourPoints = [];
+    const step = Math.max(1, Math.floor(Math.min(canvas.width, canvas.height) / 20)); // 密度調整
+    
+    // 外周をトレース
+    for (let y = 0; y < canvas.height; y += step) {
+        for (let x = 0; x < canvas.width; x++) {
+            const index = (y * canvas.width + x) * 4;
+            const alpha = pixels[index + 3];
+            
+            if (alpha > threshold) {
+                // 透明でないピクセルが見つかった場合、左端として記録
+                contourPoints.push({
+                    x: (x - canvas.width / 2) * scale,
+                    y: (y - canvas.height / 2) * scale
+                });
+                break;
+            }
+        }
+        
+        // 右端も探す
+        for (let x = canvas.width - 1; x >= 0; x--) {
+            const index = (y * canvas.width + x) * 4;
+            const alpha = pixels[index + 3];
+            
+            if (alpha > threshold) {
+                const point = {
+                    x: (x - canvas.width / 2) * scale,
+                    y: (y - canvas.height / 2) * scale
+                };
+                // 既に同じような点がないかチェック
+                const isDuplicate = contourPoints.some(p => 
+                    Math.abs(p.x - point.x) < 5 && Math.abs(p.y - point.y) < 5
+                );
+                if (!isDuplicate) {
+                    contourPoints.push(point);
+                }
+                break;
+            }
+        }
+    }
+    
+    // 上下のエッジも追加
+    for (let x = 0; x < canvas.width; x += step) {
+        // 上端
+        for (let y = 0; y < canvas.height; y++) {
+            const index = (y * canvas.width + x) * 4;
+            const alpha = pixels[index + 3];
+            
+            if (alpha > threshold) {
+                contourPoints.push({
+                    x: (x - canvas.width / 2) * scale,
+                    y: (y - canvas.height / 2) * scale
+                });
+                break;
+            }
+        }
+        
+        // 下端
+        for (let y = canvas.height - 1; y >= 0; y--) {
+            const index = (y * canvas.width + x) * 4;
+            const alpha = pixels[index + 3];
+            
+            if (alpha > threshold) {
+                const point = {
+                    x: (x - canvas.width / 2) * scale,
+                    y: (y - canvas.height / 2) * scale
+                };
+                const isDuplicate = contourPoints.some(p => 
+                    Math.abs(p.x - point.x) < 5 && Math.abs(p.y - point.y) < 5
+                );
+                if (!isDuplicate) {
+                    contourPoints.push(point);
+                }
+                break;
+            }
+        }
+    }
+    
+    if (contourPoints.length < 3) {
+        // 輪郭抽出に失敗した場合は矩形にフォールバック
+        console.warn('輪郭抽出に失敗、矩形を使用:', imageData);
+        const w = canvas.width * scale / 2;
+        const h = canvas.height * scale / 2;
+        return [
+            { x: -w, y: -h },
+            { x: w, y: -h },
+            { x: w, y: h },
+            { x: -w, y: h }
+        ];
+    }
+    
+    // 点を時計回りにソート（重心を基準に）
+    const centerX = contourPoints.reduce((sum, p) => sum + p.x, 0) / contourPoints.length;
+    const centerY = contourPoints.reduce((sum, p) => sum + p.y, 0) / contourPoints.length;
+    
+    contourPoints.sort((a, b) => {
+        const angleA = Math.atan2(a.y - centerY, a.x - centerX);
+        const angleB = Math.atan2(b.y - centerY, b.x - centerX);
+        return angleA - angleB;
+    });
+    
+    // ポリゴンを簡素化（頂点数を制限）
+    return simplifyPolygon(contourPoints, 16);
+}
+
+// ポリゴンを簡素化する関数（Douglas-Peucker風の簡略化）
+function simplifyPolygon(points, maxVertices) {
+    if (points.length <= maxVertices) return points;
+    
+    const simplified = [];
+    const step = Math.ceil(points.length / maxVertices);
+    
+    for (let i = 0; i < points.length; i += step) {
+        simplified.push(points[i]);
+    }
+    
+    return simplified;
+}
+
 // 画像をプリロードする関数
 function preloadImages() {
     const loadingPromises = imageFiles.map(filename => {
@@ -184,11 +333,15 @@ function preloadImages() {
                 // 最適なスケールを計算
                 const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
                 
+                // 輪郭ポリゴンを生成
+                const polygon = createPolygonFromImage({ image: img, scale: scale });
+                
                 gameState.loadedImages[filename] = {
                     image: img,
                     scale: scale,
                     width: img.width * scale,
-                    height: img.height * scale
+                    height: img.height * scale,
+                    polygon: polygon
                 };
                 resolve();
             };
@@ -207,10 +360,65 @@ function preloadImages() {
     });
 }
 
+// ゲームオーバーをチェックする関数
+function checkGameOver() {
+    if (gameState.gameOver) return;
+    
+    const bodies = Composite.allBodies(gameState.engine.world);
+    const groundY = GAME_CONFIG.canvas.height - GAME_CONFIG.ground.height;
+    
+    // 地面より下に落ちた動物がいるかチェック
+    for (let body of bodies) {
+        if (body.isStatic) continue; // 地面や壁は除外
+        
+        // ボディの下端が地面より下にあるかチェック
+        if (body.bounds.max.y > groundY + 50) { // 余裕をもたせて50px下
+            triggerGameOver();
+            return;
+        }
+    }
+}
+
+// ゲームオーバー処理
+function triggerGameOver() {
+    if (gameState.gameOver) return;
+    
+    gameState.gameOver = true;
+    
+    // UI更新
+    document.getElementById('gameOverText').style.display = 'block';
+    document.getElementById('controls').classList.add('game-over');
+    
+    // エンジンを停止
+    if (gameState.runner) {
+        Runner.stop(gameState.runner);
+    }
+    
+    // 現在の動物をクリア
+    gameState.currentBody = null;
+    gameState.isDropping = false;
+    
+    console.log('ゲームオーバー！ 最終スコア:', gameState.score);
+    
+    // 3秒後にリセットボタンを強調
+    setTimeout(() => {
+        const resetBtn = document.getElementById('resetBtn');
+        resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
+        resetBtn.style.color = 'white';
+        resetBtn.textContent = '🔄 もう一度プレイ';
+    }, 3000);
+}
+
+// スコアを更新する関数
+function updateScore() {
+    gameState.score++;
+    document.getElementById('scoreDisplay').textContent = `スコア: ${gameState.score}`;
+}
+
 // 入力制限付きの操作関数
 function throttledInput(callback) {
     const now = Date.now();
-    if (now - gameState.lastInputTime > GAME_CONFIG.performance.inputThrottle) {
+    if (now - gameState.lastInputTime > GAME_CONFIG.performance.inputThrottle && !gameState.gameOver) {
         gameState.lastInputTime = now;
         callback();
     }
@@ -302,24 +510,50 @@ function createRandomAnimal() {
     const randomFilename = availableImages[Math.floor(Math.random() * availableImages.length)];
     const imageData = gameState.loadedImages[randomFilename];
     
-    const body = Bodies.rectangle(
-        GAME_CONFIG.canvas.width / 2,
-        GAME_CONFIG.animal.spawnHeight,
-        imageData.width,
-        imageData.height,
-        {
-            friction: GAME_CONFIG.physics.friction,
-            frictionStatic: GAME_CONFIG.physics.frictionStatic,
-            restitution: GAME_CONFIG.physics.restitution,
-            render: {
-                sprite: {
-                    texture: randomFilename,
-                    xScale: imageData.scale,
-                    yScale: imageData.scale
+    // ポリゴンボディを作成
+    let body;
+    try {
+        // 輪郭に沿ったポリゴンボディを作成
+        body = Bodies.fromVertices(
+            GAME_CONFIG.canvas.width / 2,
+            GAME_CONFIG.animal.spawnHeight,
+            [imageData.polygon],
+            {
+                friction: GAME_CONFIG.physics.friction,
+                frictionStatic: GAME_CONFIG.physics.frictionStatic,
+                restitution: GAME_CONFIG.physics.restitution,
+                render: {
+                    sprite: {
+                        texture: randomFilename,
+                        xScale: imageData.scale,
+                        yScale: imageData.scale
+                    }
+                }
+            },
+            true // フラグを立てて内部の三角分割を自動実行
+        );
+    } catch (error) {
+        console.warn('ポリゴンボディ作成に失敗、矩形で代用:', error);
+        // フォールバック: 矩形ボディ
+        body = Bodies.rectangle(
+            GAME_CONFIG.canvas.width / 2,
+            GAME_CONFIG.animal.spawnHeight,
+            imageData.width,
+            imageData.height,
+            {
+                friction: GAME_CONFIG.physics.friction,
+                frictionStatic: GAME_CONFIG.physics.frictionStatic,
+                restitution: GAME_CONFIG.physics.restitution,
+                render: {
+                    sprite: {
+                        texture: randomFilename,
+                        xScale: imageData.scale,
+                        yScale: imageData.scale
+                    }
                 }
             }
-        }
-    );
+        );
+    }
     
     gameState.currentBody = body;
     Composite.add(gameState.engine.world, body);
@@ -327,8 +561,9 @@ function createRandomAnimal() {
 
 // 現在の動物を落下させる
 function dropCurrentAnimal() {
-    if (gameState.currentBody && !gameState.isDropping) {
+    if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
         gameState.isDropping = true;
+        updateScore(); // スコア加算
     }
 }
 
@@ -336,8 +571,11 @@ function dropCurrentAnimal() {
 function setupEventListeners() {
     // 物理演算の更新前処理
     Events.on(gameState.engine, 'beforeUpdate', () => {
+        // ゲームオーバーチェック
+        checkGameOver();
+        
         // 落下していない場合は重力を無効化（宙に浮かせる）
-        if (gameState.currentBody && !gameState.isDropping) {
+        if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
             Body.setVelocity(gameState.currentBody, { x: 0, y: 0 });
             Body.setPosition(gameState.currentBody, {
                 x: Math.max(gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x, 
@@ -348,11 +586,13 @@ function setupEventListeners() {
         }
         
         // 落下中の動物が静止したら次の動物を生成
-        if (gameState.currentBody && gameState.isDropping) {
+        if (gameState.currentBody && gameState.isDropping && !gameState.gameOver) {
             const velocity = gameState.currentBody.velocity;
             const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+            const angularSpeed = Math.abs(gameState.currentBody.angularVelocity);
             
-            if (speed < 0.1) {
+            // 線形速度と角速度の両方をチェック
+            if (speed < 0.1 && angularSpeed < 0.01) {
                 gameState.currentBody = null;
                 gameState.isDropping = false;
                 setTimeout(createRandomAnimal, 800);
@@ -363,7 +603,7 @@ function setupEventListeners() {
     // ボタンイベント（スロットリング付き）
     document.getElementById('leftBtn').onclick = () => {
         throttledInput(() => {
-            if (gameState.currentBody && !gameState.isDropping) {
+            if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
                 Body.translate(gameState.currentBody, {x: -GAME_CONFIG.animal.moveSpeed, y: 0});
             }
         });
@@ -371,7 +611,7 @@ function setupEventListeners() {
     
     document.getElementById('rightBtn').onclick = () => {
         throttledInput(() => {
-            if (gameState.currentBody && !gameState.isDropping) {
+            if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
                 Body.translate(gameState.currentBody, {x: GAME_CONFIG.animal.moveSpeed, y: 0});
             }
         });
@@ -379,7 +619,7 @@ function setupEventListeners() {
     
     document.getElementById('rotateLeftBtn').onclick = () => {
         throttledInput(() => {
-            if (gameState.currentBody && !gameState.isDropping) {
+            if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
                 Body.rotate(gameState.currentBody, -GAME_CONFIG.animal.rotateSpeed);
             }
         });
@@ -387,7 +627,7 @@ function setupEventListeners() {
     
     document.getElementById('rotateRightBtn').onclick = () => {
         throttledInput(() => {
-            if (gameState.currentBody && !gameState.isDropping) {
+            if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
                 Body.rotate(gameState.currentBody, GAME_CONFIG.animal.rotateSpeed);
             }
         });
@@ -491,12 +731,14 @@ async function startGame() {
         if (success) {
             gameState.imagesLoaded = true;
             document.getElementById('loadingText').style.display = 'none';
+            document.getElementById('scoreDisplay').style.display = 'block';
             document.getElementById('controls').style.display = 'flex';
             
             initializeGame();
             
             console.log('ゲームが開始されました！');
             console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
+            console.log('⚠️ 動物が土台から落ちるとゲームオーバーです！');
         } else {
             document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～7.PNG）を確認してください。';
             document.getElementById('loadingText').style.color = '#ff0000';
