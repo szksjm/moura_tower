@@ -324,156 +324,39 @@ function simplifyPolygon(points, maxVertices) {
     return simplified;
 }
 
-// デフォルト画像を作成する関数（画像読み込みが完全に失敗した場合）
-function createDefaultImages() {
-    console.log('デフォルト画像を作成中...');
-    
-    // 基本的な図形を作成
-    const defaultShapes = [
-        { name: 'circle', polygon: createCirclePolygon(30) },
-        { name: 'square', polygon: [
-            { x: -30, y: -30 }, { x: 30, y: -30 },
-            { x: 30, y: 30 }, { x: -30, y: 30 }
-        ]},
-        { name: 'triangle', polygon: [
-            { x: 0, y: -35 }, { x: 30, y: 25 }, { x: -30, y: 25 }
-        ]},
-        { name: 'hexagon', polygon: createHexagonPolygon(25) },
-        { name: 'diamond', polygon: [
-            { x: 0, y: -35 }, { x: 25, y: 0 },
-            { x: 0, y: 35 }, { x: -25, y: 0 }
-        ]}
-    ];
-    
-    defaultShapes.forEach((shape, index) => {
-        const filename = `default_${index + 1}`;
-        gameState.loadedImages[filename] = {
-            image: null, // デフォルト図形には画像は不要
-            scale: 1,
-            width: 60,
-            height: 60,
-            polygon: shape.polygon
-        };
-    });
-    
-    console.log('デフォルト図形を作成しました:', Object.keys(gameState.loadedImages));
-}
-
-// 円形のポリゴンを作成
-function createCirclePolygon(radius, segments = 12) {
-    const points = [];
-    for (let i = 0; i < segments; i++) {
-        const angle = (i / segments) * 2 * Math.PI;
-        points.push({
-            x: radius * Math.cos(angle),
-            y: radius * Math.sin(angle)
-        });
-    }
-    return points;
-}
-
-// 六角形のポリゴンを作成
-function createHexagonPolygon(radius) {
-    const points = [];
-    for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * 2 * Math.PI;
-        points.push({
-            x: radius * Math.cos(angle),
-            y: radius * Math.sin(angle)
-        });
-    }
-    return points;
-}
-
 // 画像をプリロードする関数
 function preloadImages() {
-    // デバッグ情報を表示
-    console.log('画像ファイル読み込み開始:', imageFiles);
-    document.getElementById('loadingText').textContent = `画像を読み込み中... (0/${imageFiles.length})`;
-    
-    let loadedCount = 0;
-    
-    const loadingPromises = imageFiles.map((filename, index) => {
+    const loadingPromises = imageFiles.map(filename => {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                loadedCount++;
-                document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
-                console.log(`✓ 画像読み込み成功: ${filename}`);
+                // 最適なスケールを計算
+                const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
                 
-                try {
-                    // 最適なスケールを計算
-                    const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
-                    
-                    // 輪郭ポリゴンを生成
-                    const polygon = createPolygonFromImage({ image: img, scale: scale });
-                    
-                    gameState.loadedImages[filename] = {
-                        image: img,
-                        scale: scale,
-                        width: img.width * scale,
-                        height: img.height * scale,
-                        polygon: polygon
-                    };
-                    resolve();
-                } catch (error) {
-                    console.warn(`画像処理エラー ${filename}:`, error);
-                    // エラーが起きても最低限の情報を保存
-                    gameState.loadedImages[filename] = {
-                        image: img,
-                        scale: 1,
-                        width: img.width,
-                        height: img.height,
-                        polygon: [
-                            { x: -img.width/2, y: -img.height/2 },
-                            { x: img.width/2, y: -img.height/2 },
-                            { x: img.width/2, y: img.height/2 },
-                            { x: -img.width/2, y: img.height/2 }
-                        ]
-                    };
-                    resolve();
-                }
+                // 輪郭ポリゴンを生成
+                const polygon = createPolygonFromImage({ image: img, scale: scale });
+                
+                gameState.loadedImages[filename] = {
+                    image: img,
+                    scale: scale,
+                    width: img.width * scale,
+                    height: img.height * scale,
+                    polygon: polygon
+                };
+                resolve();
             };
-            
-            img.onerror = (error) => {
-                console.warn(`✗ 画像の読み込みに失敗: ${filename}`, error);
-                loadedCount++;
-                document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
+            img.onerror = () => {
+                console.warn(`画像の読み込みに失敗: ${filename}`);
                 reject(new Error(`Failed to load ${filename}`));
             };
-            
-            // タイムアウト設定（5秒）
-            setTimeout(() => {
-                if (!img.complete) {
-                    console.warn(`✗ 画像読み込みタイムアウト: ${filename}`);
-                    loadedCount++;
-                    document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
-                    reject(new Error(`Timeout loading ${filename}`));
-                }
-            }, 5000);
-            
             img.src = filename;
         });
     });
     
     return Promise.allSettled(loadingPromises).then(results => {
         const successful = results.filter(result => result.status === 'fulfilled').length;
-        const failed = results.filter(result => result.status === 'rejected');
-        
-        console.log(`画像読み込み完了: ${successful}/${imageFiles.length} 成功`);
-        if (failed.length > 0) {
-            console.log('失敗した画像:', failed.map(f => f.reason.message));
-        }
-        
-        // 最低1つでも読み込めていればOK
-        if (successful > 0) {
-            return true;
-        } else {
-            // すべて失敗した場合はデフォルト画像を作成
-            console.log('すべての画像読み込みに失敗、デフォルトを使用');
-            createDefaultImages();
-            return true;
-        }
+        console.log(`${successful}/${imageFiles.length} 個の画像を読み込みました`);
+        return successful > 0;
     });
 }
 
@@ -674,8 +557,6 @@ function createRandomAnimal() {
     const randomFilename = availableImages[Math.floor(Math.random() * availableImages.length)];
     const imageData = gameState.loadedImages[randomFilename];
     
-    console.log('新しい動物を生成:', randomFilename);
-    
     // ポリゴンボディを作成
     let body;
     try {
@@ -688,14 +569,12 @@ function createRandomAnimal() {
                 friction: GAME_CONFIG.physics.friction,
                 frictionStatic: GAME_CONFIG.physics.frictionStatic,
                 restitution: GAME_CONFIG.physics.restitution,
-                render: imageData.image ? {
+                render: {
                     sprite: {
                         texture: randomFilename,
                         xScale: imageData.scale,
                         yScale: imageData.scale
                     }
-                } : {
-                    fillStyle: getRandomColor()
                 }
             },
             true // フラグを立てて内部の三角分割を自動実行
@@ -712,14 +591,12 @@ function createRandomAnimal() {
                 friction: GAME_CONFIG.physics.friction,
                 frictionStatic: GAME_CONFIG.physics.frictionStatic,
                 restitution: GAME_CONFIG.physics.restitution,
-                render: imageData.image ? {
+                render: {
                     sprite: {
                         texture: randomFilename,
                         xScale: imageData.scale,
                         yScale: imageData.scale
                     }
-                } : {
-                    fillStyle: getRandomColor()
                 }
             }
         );
@@ -727,12 +604,6 @@ function createRandomAnimal() {
     
     gameState.currentBody = body;
     Composite.add(gameState.engine.world, body);
-}
-
-// ランダムな色を取得する関数
-function getRandomColor() {
-    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
-    return colors[Math.floor(Math.random() * colors.length)];
 }
 
 // 現在の動物を落下させる
@@ -910,8 +781,8 @@ async function startGame() {
             console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
             console.log('⚠️ 動物が土台のラインより下に落ちるとゲームオーバーです！');
         } else {
-            document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。デフォルト図形でゲームを開始します。';
-            document.getElementById('loadingText').style.color = '#ff6600';
+            document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～7.PNG）を確認してください。';
+            document.getElementById('loadingText').style.color = '#ff0000';
         }
     } catch (error) {
         console.error('ゲーム初期化エラー:', error);
