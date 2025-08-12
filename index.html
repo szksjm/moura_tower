@@ -92,7 +92,7 @@
 <body>
 <div id="gameContainer">
   <div id="gameInfo">
-    <div>動物タワーバトル</div>
+    <div>かんぴろくんタワーバトル</div>
     <div id="scoreDisplay">スコア: 0</div>
     <div id="loadingText" class="loading">画像を読み込み中...</div>
     <div id="gameOverText" style="display: none; color: #ff0000; font-size: 24px; font-weight: bold;">ゲームオーバー！</div>
@@ -127,7 +127,7 @@ const GAME_CONFIG = {
         gravity: 0.5,
         friction: 0.7,
         frictionStatic: 0.9,
-        restitution: 0.2
+        restitution: 0.1  // 跳ね返りを小さく（0.2 → 0.1）
     },
     animal: {
         targetSize: 90,  // 目標サイズ（ピクセル）1.5倍に
@@ -324,39 +324,156 @@ function simplifyPolygon(points, maxVertices) {
     return simplified;
 }
 
+// デフォルト画像を作成する関数（画像読み込みが完全に失敗した場合）
+function createDefaultImages() {
+    console.log('デフォルト画像を作成中...');
+    
+    // 基本的な図形を作成
+    const defaultShapes = [
+        { name: 'circle', polygon: createCirclePolygon(30) },
+        { name: 'square', polygon: [
+            { x: -30, y: -30 }, { x: 30, y: -30 },
+            { x: 30, y: 30 }, { x: -30, y: 30 }
+        ]},
+        { name: 'triangle', polygon: [
+            { x: 0, y: -35 }, { x: 30, y: 25 }, { x: -30, y: 25 }
+        ]},
+        { name: 'hexagon', polygon: createHexagonPolygon(25) },
+        { name: 'diamond', polygon: [
+            { x: 0, y: -35 }, { x: 25, y: 0 },
+            { x: 0, y: 35 }, { x: -25, y: 0 }
+        ]}
+    ];
+    
+    defaultShapes.forEach((shape, index) => {
+        const filename = `default_${index + 1}`;
+        gameState.loadedImages[filename] = {
+            image: null, // デフォルト図形には画像は不要
+            scale: 1,
+            width: 60,
+            height: 60,
+            polygon: shape.polygon
+        };
+    });
+    
+    console.log('デフォルト図形を作成しました:', Object.keys(gameState.loadedImages));
+}
+
+// 円形のポリゴンを作成
+function createCirclePolygon(radius, segments = 12) {
+    const points = [];
+    for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * 2 * Math.PI;
+        points.push({
+            x: radius * Math.cos(angle),
+            y: radius * Math.sin(angle)
+        });
+    }
+    return points;
+}
+
+// 六角形のポリゴンを作成
+function createHexagonPolygon(radius) {
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * 2 * Math.PI;
+        points.push({
+            x: radius * Math.cos(angle),
+            y: radius * Math.sin(angle)
+        });
+    }
+    return points;
+}
+
 // 画像をプリロードする関数
 function preloadImages() {
-    const loadingPromises = imageFiles.map(filename => {
+    // デバッグ情報を表示
+    console.log('画像ファイル読み込み開始:', imageFiles);
+    document.getElementById('loadingText').textContent = `画像を読み込み中... (0/${imageFiles.length})`;
+    
+    let loadedCount = 0;
+    
+    const loadingPromises = imageFiles.map((filename, index) => {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                // 最適なスケールを計算
-                const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
+                loadedCount++;
+                document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
+                console.log(`✓ 画像読み込み成功: ${filename}`);
                 
-                // 輪郭ポリゴンを生成
-                const polygon = createPolygonFromImage({ image: img, scale: scale });
-                
-                gameState.loadedImages[filename] = {
-                    image: img,
-                    scale: scale,
-                    width: img.width * scale,
-                    height: img.height * scale,
-                    polygon: polygon
-                };
-                resolve();
+                try {
+                    // 最適なスケールを計算
+                    const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
+                    
+                    // 輪郭ポリゴンを生成
+                    const polygon = createPolygonFromImage({ image: img, scale: scale });
+                    
+                    gameState.loadedImages[filename] = {
+                        image: img,
+                        scale: scale,
+                        width: img.width * scale,
+                        height: img.height * scale,
+                        polygon: polygon
+                    };
+                    resolve();
+                } catch (error) {
+                    console.warn(`画像処理エラー ${filename}:`, error);
+                    // エラーが起きても最低限の情報を保存
+                    gameState.loadedImages[filename] = {
+                        image: img,
+                        scale: 1,
+                        width: img.width,
+                        height: img.height,
+                        polygon: [
+                            { x: -img.width/2, y: -img.height/2 },
+                            { x: img.width/2, y: -img.height/2 },
+                            { x: img.width/2, y: img.height/2 },
+                            { x: -img.width/2, y: img.height/2 }
+                        ]
+                    };
+                    resolve();
+                }
             };
-            img.onerror = () => {
-                console.warn(`画像の読み込みに失敗: ${filename}`);
+            
+            img.onerror = (error) => {
+                console.warn(`✗ 画像の読み込みに失敗: ${filename}`, error);
+                loadedCount++;
+                document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
                 reject(new Error(`Failed to load ${filename}`));
             };
+            
+            // タイムアウト設定（5秒）
+            setTimeout(() => {
+                if (!img.complete) {
+                    console.warn(`✗ 画像読み込みタイムアウト: ${filename}`);
+                    loadedCount++;
+                    document.getElementById('loadingText').textContent = `画像を読み込み中... (${loadedCount}/${imageFiles.length})`;
+                    reject(new Error(`Timeout loading ${filename}`));
+                }
+            }, 5000);
+            
             img.src = filename;
         });
     });
     
     return Promise.allSettled(loadingPromises).then(results => {
         const successful = results.filter(result => result.status === 'fulfilled').length;
-        console.log(`${successful}/${imageFiles.length} 個の画像を読み込みました`);
-        return successful > 0;
+        const failed = results.filter(result => result.status === 'rejected');
+        
+        console.log(`画像読み込み完了: ${successful}/${imageFiles.length} 成功`);
+        if (failed.length > 0) {
+            console.log('失敗した画像:', failed.map(f => f.reason.message));
+        }
+        
+        // 最低1つでも読み込めていればOK
+        if (successful > 0) {
+            return true;
+        } else {
+            // すべて失敗した場合はデフォルト画像を作成
+            console.log('すべての画像読み込みに失敗、デフォルトを使用');
+            createDefaultImages();
+            return true;
+        }
     });
 }
 
@@ -365,14 +482,14 @@ function checkGameOver() {
     if (gameState.gameOver) return;
     
     const bodies = Composite.allBodies(gameState.engine.world);
-    const groundY = GAME_CONFIG.canvas.height - GAME_CONFIG.ground.height;
+    const groundY = GAME_CONFIG.canvas.height - GAME_CONFIG.ground.height; // 地面の上端位置
     
     // 地面より下に落ちた動物がいるかチェック
     for (let body of bodies) {
-        if (body.isStatic) continue; // 地面や壁は除外
+        if (body.isStatic) continue; // 地面は除外
         
-        // ボディの下端が地面より下にあるかチェック
-        if (body.bounds.max.y > groundY + 50) { // 余裕をもたせて50px下
+        // ボディの下端が地面の上端より下にあるかチェック
+        if (body.bounds.max.y > groundY) {
             triggerGameOver();
             return;
         }
@@ -406,7 +523,10 @@ function triggerGameOver() {
         resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
         resetBtn.style.color = 'white';
         resetBtn.textContent = '🔄 もう一度プレイ';
-    }, 3000);
+        // ゲームオーバー時でもリセットボタンは操作可能にする
+        resetBtn.style.pointerEvents = 'auto';
+        resetBtn.style.opacity = '1';
+    }, 1000);
 }
 
 // スコアを更新する関数
@@ -436,6 +556,54 @@ function optimizedRender() {
             gameState.lastRenderTime = now;
         }
     }
+}
+
+// ゲーム状態をリセットする関数
+function resetGame() {
+    // アニメーションフレームをクリア
+    if (gameState.animationFrame) {
+        cancelAnimationFrame(gameState.animationFrame);
+    }
+    
+    // エンジンとレンダラーを停止・破棄
+    if (gameState.runner) {
+        Runner.stop(gameState.runner);
+    }
+    if (gameState.render) {
+        Render.stop(gameState.render);
+    }
+    if (gameState.engine) {
+        Engine.clear(gameState.engine);
+    }
+    
+    // ゲーム状態をリセット
+    gameState.engine = null;
+    gameState.render = null;
+    gameState.runner = null;
+    gameState.currentBody = null;
+    gameState.isDropping = false;
+    gameState.gameOver = false;
+    gameState.score = 0;
+    gameState.lastInputTime = 0;
+    gameState.animationFrame = null;
+    
+    // UI要素をリセット
+    document.getElementById('gameOverText').style.display = 'none';
+    document.getElementById('controls').classList.remove('game-over');
+    document.getElementById('scoreDisplay').textContent = 'スコア: 0';
+    
+    // リセットボタンの見た目を元に戻す
+    const resetBtn = document.getElementById('resetBtn');
+    resetBtn.style.background = 'linear-gradient(145deg, #FFE4B5, #F0E68C)';
+    resetBtn.style.color = '';
+    resetBtn.textContent = '🔄 リセット';
+    resetBtn.style.pointerEvents = '';
+    resetBtn.style.opacity = '';
+    
+    // ゲームを再初期化
+    initializeGame();
+    
+    console.log('ゲームがリセットされました');
 }
 
 // ゲームエンジンの初期化
@@ -476,12 +644,8 @@ function initializeGame() {
         }
     );
     
-    // 左右の見えない壁を追加（動物が画面外に落ちないように）
-    const wallThickness = 10;
-    const leftWall = Bodies.rectangle(-wallThickness/2, GAME_CONFIG.canvas.height/2, wallThickness, GAME_CONFIG.canvas.height, { isStatic: true, render: { visible: false } });
-    const rightWall = Bodies.rectangle(GAME_CONFIG.canvas.width + wallThickness/2, GAME_CONFIG.canvas.height/2, wallThickness, GAME_CONFIG.canvas.height, { isStatic: true, render: { visible: false } });
-    
-    Composite.add(gameState.engine.world, [ground, leftWall, rightWall]);
+    // 左右の見えない壁は削除（動物が画面外に落ちることを許可）
+    Composite.add(gameState.engine.world, [ground]);
     
     // ランナーの作成と開始（FPS制限）
     gameState.runner = Runner.create();
@@ -510,6 +674,8 @@ function createRandomAnimal() {
     const randomFilename = availableImages[Math.floor(Math.random() * availableImages.length)];
     const imageData = gameState.loadedImages[randomFilename];
     
+    console.log('新しい動物を生成:', randomFilename);
+    
     // ポリゴンボディを作成
     let body;
     try {
@@ -522,12 +688,14 @@ function createRandomAnimal() {
                 friction: GAME_CONFIG.physics.friction,
                 frictionStatic: GAME_CONFIG.physics.frictionStatic,
                 restitution: GAME_CONFIG.physics.restitution,
-                render: {
+                render: imageData.image ? {
                     sprite: {
                         texture: randomFilename,
                         xScale: imageData.scale,
                         yScale: imageData.scale
                     }
+                } : {
+                    fillStyle: getRandomColor()
                 }
             },
             true // フラグを立てて内部の三角分割を自動実行
@@ -544,12 +712,14 @@ function createRandomAnimal() {
                 friction: GAME_CONFIG.physics.friction,
                 frictionStatic: GAME_CONFIG.physics.frictionStatic,
                 restitution: GAME_CONFIG.physics.restitution,
-                render: {
+                render: imageData.image ? {
                     sprite: {
                         texture: randomFilename,
                         xScale: imageData.scale,
                         yScale: imageData.scale
                     }
+                } : {
+                    fillStyle: getRandomColor()
                 }
             }
         );
@@ -557,6 +727,12 @@ function createRandomAnimal() {
     
     gameState.currentBody = body;
     Composite.add(gameState.engine.world, body);
+}
+
+// ランダムな色を取得する関数
+function getRandomColor() {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+    return colors[Math.floor(Math.random() * colors.length)];
 }
 
 // 現在の動物を落下させる
@@ -577,10 +753,9 @@ function setupEventListeners() {
         // 落下していない場合は重力を無効化（宙に浮かせる）
         if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
             Body.setVelocity(gameState.currentBody, { x: 0, y: 0 });
+            // 画面端での位置制限を削除（画面外に出ることを許可）
             Body.setPosition(gameState.currentBody, {
-                x: Math.max(gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x, 
-                          Math.min(GAME_CONFIG.canvas.width - (gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x), 
-                                  gameState.currentBody.position.x)),
+                x: gameState.currentBody.position.x,
                 y: gameState.currentBody.position.y
             });
         }
@@ -635,13 +810,8 @@ function setupEventListeners() {
     
     document.getElementById('dropBtn').onclick = dropCurrentAnimal;
     
-    document.getElementById('resetBtn').onclick = () => {
-        // アニメーションフレームをクリア
-        if (gameState.animationFrame) {
-            cancelAnimationFrame(gameState.animationFrame);
-        }
-        location.reload();
-    };
+    // リセットボタンの処理を修正
+    document.getElementById('resetBtn').onclick = resetGame;
     
     // タッチイベント（スマホ対応）
     let touchHandlers = {};
@@ -738,10 +908,10 @@ async function startGame() {
             
             console.log('ゲームが開始されました！');
             console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
-            console.log('⚠️ 動物が土台から落ちるとゲームオーバーです！');
+            console.log('⚠️ 動物が土台のラインより下に落ちるとゲームオーバーです！');
         } else {
-            document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～7.PNG）を確認してください。';
-            document.getElementById('loadingText').style.color = '#ff0000';
+            document.getElementById('loadingText').textContent = '画像の読み込みに失敗しました。デフォルト図形でゲームを開始します。';
+            document.getElementById('loadingText').style.color = '#ff6600';
         }
     } catch (error) {
         console.error('ゲーム初期化エラー:', error);
@@ -752,6 +922,3 @@ async function startGame() {
 
 // ページ読み込み完了後にゲーム開始
 window.addEventListener('load', startGame);
-</script>
-</body>
-</html>
