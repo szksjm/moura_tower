@@ -10,6 +10,10 @@
     background: linear-gradient(135deg, #87CEEB, #E0F6FF);
     font-family: 'Arial', sans-serif;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
   
   #gameContainer {
@@ -35,8 +39,8 @@
   }
   
   button { 
-    font-size: 18px; 
-    padding: 8px 16px;
+    font-size: 16px; 
+    padding: 12px 20px;
     border: none;
     border-radius: 8px;
     background: linear-gradient(145deg, #FFE4B5, #F0E68C);
@@ -44,6 +48,9 @@
     cursor: pointer;
     font-weight: bold;
     transition: all 0.1s;
+    min-width: 70px;
+    min-height: 44px;
+    touch-action: manipulation;
   }
   
   button:hover {
@@ -110,12 +117,17 @@ const GAME_CONFIG = {
         restitution: 0.2
     },
     animal: {
-        targetSize: 60,  // 目標サイズ（ピクセル）
-        minSize: 40,
-        maxSize: 80,
+        targetSize: 90,  // 目標サイズ（ピクセル）1.5倍に
+        minSize: 60,
+        maxSize: 120,
         spawnHeight: 80,
-        moveSpeed: 12,
-        rotateSpeed: Math.PI / 16
+        moveSpeed: 15,
+        rotateSpeed: Math.PI / 12
+    },
+    performance: {
+        targetFPS: 60,
+        renderTiming: 16.67, // 1000/60
+        inputThrottle: 50 // 入力の間隔制限（ms）
     }
 };
 
@@ -127,7 +139,9 @@ let gameState = {
     currentBody: null,
     isDropping: false,
     imagesLoaded: false,
-    loadedImages: {}
+    loadedImages: {},
+    lastInputTime: 0,
+    animationFrame: null
 };
 
 // 画像ファイル名
@@ -193,6 +207,29 @@ function preloadImages() {
     });
 }
 
+// 入力制限付きの操作関数
+function throttledInput(callback) {
+    const now = Date.now();
+    if (now - gameState.lastInputTime > GAME_CONFIG.performance.inputThrottle) {
+        gameState.lastInputTime = now;
+        callback();
+    }
+}
+
+// 最適化されたレンダリング
+function optimizedRender() {
+    if (gameState.render) {
+        gameState.animationFrame = requestAnimationFrame(optimizedRender);
+        
+        // フレームレート制御
+        const now = performance.now();
+        if (now - gameState.lastRenderTime >= GAME_CONFIG.performance.renderTiming) {
+            Render.world(gameState.render);
+            gameState.lastRenderTime = now;
+        }
+    }
+}
+
 // ゲームエンジンの初期化
 function initializeGame() {
     const canvas = document.getElementById('gameCanvas');
@@ -211,7 +248,8 @@ function initializeGame() {
             wireframes: false,
             background: 'transparent',
             showAngleIndicator: false,
-            showVelocity: false
+            showVelocity: false,
+            pixelRatio: Math.min(window.devicePixelRatio || 1, 2) // 高DPI対応但し制限
         }
     });
     
@@ -237,10 +275,14 @@ function initializeGame() {
     
     Composite.add(gameState.engine.world, [ground, leftWall, rightWall]);
     
-    // ランナーの作成と開始
+    // ランナーの作成と開始（FPS制限）
     gameState.runner = Runner.create();
+    gameState.runner.delta = GAME_CONFIG.performance.renderTiming;
     Runner.run(gameState.runner, gameState.engine);
-    Render.run(gameState.render);
+    
+    // 最適化されたレンダリング開始
+    gameState.lastRenderTime = 0;
+    optimizedRender();
     
     // イベントリスナーの設定
     setupEventListeners();
@@ -318,38 +360,98 @@ function setupEventListeners() {
         }
     });
     
-    // ボタンイベント
+    // ボタンイベント（スロットリング付き）
     document.getElementById('leftBtn').onclick = () => {
-        if (gameState.currentBody && !gameState.isDropping) {
-            Body.translate(gameState.currentBody, {x: -GAME_CONFIG.animal.moveSpeed, y: 0});
-        }
+        throttledInput(() => {
+            if (gameState.currentBody && !gameState.isDropping) {
+                Body.translate(gameState.currentBody, {x: -GAME_CONFIG.animal.moveSpeed, y: 0});
+            }
+        });
     };
     
     document.getElementById('rightBtn').onclick = () => {
-        if (gameState.currentBody && !gameState.isDropping) {
-            Body.translate(gameState.currentBody, {x: GAME_CONFIG.animal.moveSpeed, y: 0});
-        }
+        throttledInput(() => {
+            if (gameState.currentBody && !gameState.isDropping) {
+                Body.translate(gameState.currentBody, {x: GAME_CONFIG.animal.moveSpeed, y: 0});
+            }
+        });
     };
     
     document.getElementById('rotateLeftBtn').onclick = () => {
-        if (gameState.currentBody && !gameState.isDropping) {
-            Body.rotate(gameState.currentBody, -GAME_CONFIG.animal.rotateSpeed);
-        }
+        throttledInput(() => {
+            if (gameState.currentBody && !gameState.isDropping) {
+                Body.rotate(gameState.currentBody, -GAME_CONFIG.animal.rotateSpeed);
+            }
+        });
     };
     
     document.getElementById('rotateRightBtn').onclick = () => {
-        if (gameState.currentBody && !gameState.isDropping) {
-            Body.rotate(gameState.currentBody, GAME_CONFIG.animal.rotateSpeed);
-        }
+        throttledInput(() => {
+            if (gameState.currentBody && !gameState.isDropping) {
+                Body.rotate(gameState.currentBody, GAME_CONFIG.animal.rotateSpeed);
+            }
+        });
     };
     
     document.getElementById('dropBtn').onclick = dropCurrentAnimal;
     
     document.getElementById('resetBtn').onclick = () => {
+        // アニメーションフレームをクリア
+        if (gameState.animationFrame) {
+            cancelAnimationFrame(gameState.animationFrame);
+        }
         location.reload();
     };
     
-    // キーボード操作
+    // タッチイベント（スマホ対応）
+    let touchHandlers = {};
+    
+    ['leftBtn', 'rightBtn', 'rotateLeftBtn', 'rotateRightBtn'].forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        let touchInterval = null;
+        
+        const startAction = () => {
+            btn.click();
+            touchInterval = setInterval(() => btn.click(), 100);
+        };
+        
+        const stopAction = () => {
+            if (touchInterval) {
+                clearInterval(touchInterval);
+                touchInterval = null;
+            }
+        };
+        
+        // タッチイベント
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startAction();
+        });
+        
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopAction();
+        });
+        
+        btn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            stopAction();
+        });
+        
+        // マウスイベント（デスクトップ用）
+        btn.addEventListener('mousedown', startAction);
+        btn.addEventListener('mouseup', stopAction);
+        btn.addEventListener('mouseleave', stopAction);
+    });
+    
+    // 落とすボタンとリセットボタンは単発
+    ['dropBtn', 'resetBtn'].forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            btn.click();
+        });
+    });
     document.addEventListener('keydown', (event) => {
         switch(event.code) {
             case 'ArrowLeft':
