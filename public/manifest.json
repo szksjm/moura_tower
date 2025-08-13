@@ -1,0 +1,21 @@
+{
+  "name": "Animal Tower Battle",
+  "short_name": "Animal Tower",
+  "description": "動物タワーバトル",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#87CEEB",
+  "theme_color": "#4169E1",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

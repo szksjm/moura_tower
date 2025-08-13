@@ -1,7 +1,11 @@
-const CACHE_NAME = 'animal-tower-v1';
+const CACHE_NAME = 'animal-tower-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
+  '/styles.css',
+  '/main.js',
+  '/public/manifest.json',
+  '/public/icon.svg',
   '/sample/matter.min.js'
 ];
 
