@@ -322,6 +322,13 @@ let audioElements = {
 // 画像ファイル名
 const imageFiles = ['2.PNG', '3.PNG', '4.PNG', '5.PNG', '6.PNG', '8.PNG', '9.PNG', '11.PNG', '12.PNG'];
 
+let precomputedPolygons = {};
+
+async function loadPolygons() {
+    const response = await fetch('polygons.json');
+    precomputedPolygons = await response.json();
+}
+
 // オーディオ初期化
 function initializeAudio() {
     audioElements.bgm = document.getElementById('bgmAudio');
@@ -456,128 +463,14 @@ function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
     return scale;
 }
 
-// 画像から輪郭を抽出してポリゴンを生成する関数
-function createPolygonFromImage(imageData, threshold = 128) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = imageData.image;
-    const scale = imageData.scale;
-    
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-    
-    const imgDataPixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imgDataPixels.data;
-    
-    const contourPoints = [];
-    const step = Math.max(1, Math.floor(Math.min(canvas.width, canvas.height) / 20));
-    
-    // 外周をトレース
-    for (let y = 0; y < canvas.height; y += step) {
-        for (let x = 0; x < canvas.width; x++) {
-            const index = (y * canvas.width + x) * 4;
-            const alpha = pixels[index + 3];
-            
-            if (alpha > threshold) {
-                contourPoints.push({
-                    x: (x - canvas.width / 2) * scale,
-                    y: (y - canvas.height / 2) * scale
-                });
-                break;
-            }
-        }
-        
-        for (let x = canvas.width - 1; x >= 0; x--) {
-            const index = (y * canvas.width + x) * 4;
-            const alpha = pixels[index + 3];
-            
-            if (alpha > threshold) {
-                const point = {
-                    x: (x - canvas.width / 2) * scale,
-                    y: (y - canvas.height / 2) * scale
-                };
-                const isDuplicate = contourPoints.some(p => 
-                    Math.abs(p.x - point.x) < 5 && Math.abs(p.y - point.y) < 5
-                );
-                if (!isDuplicate) {
-                    contourPoints.push(point);
-                }
-                break;
-            }
-        }
+// 画像からポリゴンを取得する関数（事前計算済みデータを参照）
+function createPolygonFromImage(filename) {
+    const polygon = precomputedPolygons[filename];
+    if (!polygon) {
+        console.warn('Precomputed polygon not found for', filename);
+        return [];
     }
-    
-    for (let x = 0; x < canvas.width; x += step) {
-        for (let y = 0; y < canvas.height; y++) {
-            const index = (y * canvas.width + x) * 4;
-            const alpha = pixels[index + 3];
-            
-            if (alpha > threshold) {
-                contourPoints.push({
-                    x: (x - canvas.width / 2) * scale,
-                    y: (y - canvas.height / 2) * scale
-                });
-                break;
-            }
-        }
-        
-        for (let y = canvas.height - 1; y >= 0; y--) {
-            const index = (y * canvas.width + x) * 4;
-            const alpha = pixels[index + 3];
-            
-            if (alpha > threshold) {
-                const point = {
-                    x: (x - canvas.width / 2) * scale,
-                    y: (y - canvas.height / 2) * scale
-                };
-                const isDuplicate = contourPoints.some(p => 
-                    Math.abs(p.x - point.x) < 5 && Math.abs(p.y - point.y) < 5
-                );
-                if (!isDuplicate) {
-                    contourPoints.push(point);
-                }
-                break;
-            }
-        }
-    }
-    
-    if (contourPoints.length < 3) {
-        console.warn('輪郭抽出に失敗、矩形を使用:', imageData);
-        const w = canvas.width * scale / 2;
-        const h = canvas.height * scale / 2;
-        return [
-            { x: -w, y: -h },
-            { x: w, y: -h },
-            { x: w, y: h },
-            { x: -w, y: h }
-        ];
-    }
-    
-    const centerX = contourPoints.reduce((sum, p) => sum + p.x, 0) / contourPoints.length;
-    const centerY = contourPoints.reduce((sum, p) => sum + p.y, 0) / contourPoints.length;
-    
-    contourPoints.sort((a, b) => {
-        const angleA = Math.atan2(a.y - centerY, a.x - centerX);
-        const angleB = Math.atan2(b.y - centerY, b.x - centerX);
-        return angleA - angleB;
-    });
-    
-    return simplifyPolygon(contourPoints, 16);
-}
-
-// ポリゴンを簡素化する関数
-function simplifyPolygon(points, maxVertices) {
-    if (points.length <= maxVertices) return points;
-    
-    const simplified = [];
-    const step = Math.ceil(points.length / maxVertices);
-    
-    for (let i = 0; i < points.length; i += step) {
-        simplified.push(points[i]);
-    }
-    
-    return simplified;
+    return polygon;
 }
 
 // 画像をプリロードする関数
@@ -587,7 +480,7 @@ function preloadImages() {
             const img = new Image();
             img.onload = () => {
                 const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
-                const polygon = createPolygonFromImage({ image: img, scale: scale });
+                const polygon = createPolygonFromImage(filename);
                 
                 gameState.loadedImages[filename] = {
                     image: img,
@@ -1008,6 +901,7 @@ async function startGame() {
     enableAudioOnUserInteraction();
     
     try {
+        await loadPolygons();
         const success = await preloadImages();
         
         if (success) {
