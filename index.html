@@ -589,9 +589,15 @@ function preloadImages(imageList, onProgress) {
     const loadingPromises = imageList.map(filename => {
         return new Promise((resolve) => {
             const img = new Image();
-            img.onload = () => {
+            img.onload = async () => {
                 const scale = calculateOptimalScale(img.width, img.height, GAME_CONFIG.animal.targetSize);
-                const polygon = createPolygonFromImage({ image: img, scale: scale });
+                let polygon = [];
+                try {
+                    const res = await fetch(`polygons/${filename.replace(/\.PNG$/i, '.json')}`);
+                    polygon = await res.json();
+                } catch (err) {
+                    console.warn(`ポリゴンの読み込みに失敗: ${filename}`, err);
+                }
 
                 gameState.loadedImages[filename] = {
                     image: img,
