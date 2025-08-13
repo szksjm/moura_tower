@@ -1,0 +1,134 @@
+  body { 
+    margin: 0; 
+    background: linear-gradient(135deg, #87CEEB, #E0F6FF);
+    font-family: 'Arial', sans-serif;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+  
+  #gameContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    min-height: 100vh;
+  }
+  
+  canvas { 
+    border: 3px solid #4169E1;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+  }
+  
+  #controls { 
+    display: flex; 
+    justify-content: center; 
+    gap: 8px; 
+    margin: 15px 0;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  
+  button { 
+    font-size: 14px; 
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(145deg, #FFE4B5, #F0E68C);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.1s;
+    min-width: 60px;
+    min-height: 44px;
+    touch-action: manipulation;
+    white-space: nowrap;
+  }
+  
+  button:hover {
+    background: linear-gradient(145deg, #F0E68C, #FFE4B5);
+    transform: translateY(-1px);
+  }
+  
+  button:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  
+  #gameInfo {
+    text-align: center;
+    margin: 10px 0;
+    font-weight: bold;
+    color: #333;
+  }
+  
+  #scoreDisplay {
+    font-size: 18px;
+    color: #2E8B57;
+    margin: 5px 0;
+  }
+  
+  
+  .game-over {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  
+  .loading {
+    text-align: center;
+    font-size: 18px;
+    color: #666;
+    margin: 20px;
+  }
+  
+  #installPrompt {
+    background: linear-gradient(145deg, #4CAF50, #45a049);
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    margin: 10px 0;
+    cursor: pointer;
+    font-weight: bold;
+    display: none;
+  }
+  
+  /* スマホ対応レスポンシブ */
+  @media (max-width: 480px) {
+    #gameContainer {
+      padding: 5px;
+    }
+    
+    canvas {
+      max-width: calc(100vw - 20px);
+      height: auto;
+    }
+    
+    button {
+      font-size: 12px;
+      padding: 8px 12px;
+      min-width: 50px;
+    }
+    
+    #controls {
+      gap: 5px;
+      margin: 10px 0;
+    }
+  }
+  
+  .pwa-info {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(65, 105, 225, 0.9);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    z-index: 1000;
+  }
