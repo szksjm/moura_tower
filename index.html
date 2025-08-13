@@ -179,6 +179,7 @@
     <div>カンピロぐらぐら</div>
     <div id="scoreDisplay">スコア: 0</div>
     <div id="loadingText" class="loading">画像を読み込み中...</div>
+    <button id="retryBtn" style="display: none;">再試行</button>
     <div id="gameOverText" style="display: none; color: #ff0000; font-size: 24px; font-weight: bold;">ゲームオーバー！</div>
   </div>
   
@@ -623,7 +624,7 @@ function preloadImages(imageList, onProgress) {
     return Promise.all(loadingPromises).then(results => {
         const successful = results.filter(result => result.status === 'fulfilled').length;
         console.log(`${successful}/${total} 個の画像を読み込みました`);
-        return successful > 0;
+        return successful === total;
     });
 }
 
@@ -1016,7 +1017,15 @@ function setupEventListeners() {
 // ゲーム初期化とスタート
 async function startGame() {
     const loadingText = document.getElementById('loadingText');
+    const retryBtn = document.getElementById('retryBtn');
+
+    retryBtn.style.display = 'none';
+    loadingText.style.display = 'block';
+    loadingText.style.color = '';
     loadingText.textContent = `画像を読み込み中... 0/${requiredImageFiles.length}`;
+
+    gameState.loadedImages = {};
+    gameState.imagesLoaded = false;
 
     // オーディオ初期化
     initializeAudio();
@@ -1045,13 +1054,17 @@ async function startGame() {
         } else {
             loadingText.textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～12.PNG）を確認してください。';
             loadingText.style.color = '#ff0000';
+            retryBtn.style.display = 'inline-block';
         }
     } catch (error) {
         console.error('ゲーム初期化エラー:', error);
         loadingText.textContent = 'ゲームの初期化に失敗しました。';
         loadingText.style.color = '#ff0000';
+        retryBtn.style.display = 'inline-block';
     }
 }
+
+document.getElementById('retryBtn').addEventListener('click', startGame);
 
 // ページ読み込み完了後にゲーム開始
 window.addEventListener('DOMContentLoaded', startGame);
