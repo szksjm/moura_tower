@@ -230,7 +230,7 @@
 // Service Worker登録
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('data:application/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdpbnN0YWxsJywgZSA9PiB7CiAgZS53YWl0VW50aWwoCiAgICBjYWNoZXMub3BlbignYW5pbWFsLXRvd2VyLXYxJykudGhlbihjYWNoZSA9PiB7CiAgICAgIHJldHVybiBjYWNoZS5hZGRBbGwoWwogICAgICAgICcuLycsCiAgICAgICAgJy4vaW5kZXguaHRtbCcsCiAgICAgICAgJy4vc2FtcGxlL21hdHRlci5taW4uanMnLAogICAgICAgICcuL2JnbS5tcDMnLAogICAgICAgICcuLzEuUE5HJywKICAgICAgICAnLi8yLlBORycsCiAgICAgICAgJy4vMy5QTkcnLAogICAgICAgICcuLzQuUE5HJywKICAgICAgICAnLi81LlBORycsCiAgICAgICAgJy4vNi5QTkcnLAogICAgICAgICcuLzcuUE5HJywKICAgICAgICAnLi84LlBORycsCiAgICAgICAgJy4vOS5QTkcnLAogICAgICAgICcuLzEwLlBORycsCiAgICAgICAgJy4vMTEuUE5HJywKICAgICAgICAnLi8xMi5QTkcnCiAgICAgXSk7ICAgIAogICAgfSkKICApOwp9KTsKCnNlbGYuYWRkRXZlbnRMaXN0ZW5lcignZmV0Y2gnLCBlID0+IHsKICBlLnJlc3BvbmRXaXRoKAogICAgY2FjaGVzLm1hdGNoKGUucmVxdWVzdCkudGhlbihyZXNwb25zZSA9PiB7CiAgICAgIHJldHVybiByZXNwb25zZSB8fCBmZXRjaChlLnJlcXVlc3QpOwogICAgfSkKICApOwp9KTs=')
+    navigator.serviceWorker.register('/sw.js')
       .then(registration => {
         console.log('SW registered: ', registration);
       })
