@@ -90,26 +90,6 @@
     margin: 5px 0;
   }
   
-  #audioControls {
-    display: flex;
-    gap: 10px;
-    margin: 10px 0;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  #volumeControl {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 5px 10px;
-    border-radius: 20px;
-  }
-  
-  #volumeSlider {
-    width: 80px;
-  }
   
   .game-over {
     opacity: 0.6;
@@ -187,14 +167,6 @@
   
   <canvas id="gameCanvas" width="400" height="600"></canvas>
   
-  <div id="audioControls" style="display: none;">
-    <button id="bgmToggle">🎵 BGM: ON</button>
-    <div id="volumeControl">
-      <span>🔊</span>
-      <input type="range" id="volumeSlider" min="0" max="100" value="30">
-    </div>
-  </div>
-  
   <div id="controls" style="display: none;">
     <button id="leftBtn">← 左</button>
     <button id="rightBtn">右 →</button>
@@ -204,26 +176,6 @@
     <button id="resetBtn">🔄 リセット</button>
   </div>
 </div>
-
-<!-- オーディオ要素 -->
-<audio id="bgmAudio" loop preload="auto">
-  <!-- BGMファイルのソースを指定（複数形式対応） -->
-  <source src="bgm.mp3" type="audio/mpeg">
-  <source src="bgm.ogg" type="audio/ogg">
-  <source src="bgm.wav" type="audio/wav">
-</audio>
-
-<audio id="dropSound" preload="auto">
-  <source src="drop.mp3" type="audio/mpeg">
-  <source src="drop.ogg" type="audio/ogg">
-  <source src="drop.wav" type="audio/wav">
-</audio>
-
-<audio id="gameOverSound" preload="auto">
-  <source src="gameover.mp3" type="audio/mpeg">
-  <source src="gameover.ogg" type="audio/ogg">
-  <source src="gameover.wav" type="audio/wav">
-</audio>
 
 <script src="sample/matter.min.js"></script>
 <script>
@@ -285,16 +237,12 @@ const GAME_CONFIG = {
         moveSpeed: 15,
         rotateSpeed: Math.PI / 12
     },
-    performance: {
-        targetFPS: 60,
-        renderTiming: 16.67,
-        inputThrottle: 50
-    },
-    audio: {
-        bgmVolume: 0.3,
-        sfxVolume: 0.5
-    }
-};
+      performance: {
+          targetFPS: 60,
+          renderTiming: 16.67,
+          inputThrottle: 50
+      }
+  };
 
 // ゲーム状態
 let gameState = {
@@ -306,136 +254,17 @@ let gameState = {
     imagesLoaded: false,
     loadedImages: {},
     lastInputTime: 0,
-    animationFrame: null,
-    gameOver: false,
-    score: 0,
-    bgmEnabled: true,
-    audioContext: null
-};
-
-// オーディオ要素
-let audioElements = {
-    bgm: null,
-    dropSound: null,
-    gameOverSound: null
-};
+      animationFrame: null,
+      gameOver: false,
+      score: 0
+  };
 
 // 画像ファイル名
 const requiredImageFiles = ['2.PNG', '3.PNG', '4.PNG', '5.PNG', '6.PNG', '8.PNG', '9.PNG', '11.PNG', '12.PNG'];
 const optionalImageFiles = ['1.PNG', '7.PNG', '10.PNG'];
 
-// オーディオ初期化
-function initializeAudio() {
-    audioElements.bgm = document.getElementById('bgmAudio');
-    audioElements.dropSound = document.getElementById('dropSound');
-    audioElements.gameOverSound = document.getElementById('gameOverSound');
-    
-    // 音量設定
-    if (audioElements.bgm) {
-        audioElements.bgm.volume = GAME_CONFIG.audio.bgmVolume;
-        audioElements.bgm.load(); // プリロード
-    }
-    
-    if (audioElements.dropSound) {
-        audioElements.dropSound.volume = GAME_CONFIG.audio.sfxVolume;
-        audioElements.dropSound.load();
-    }
-    
-    if (audioElements.gameOverSound) {
-        audioElements.gameOverSound.volume = GAME_CONFIG.audio.sfxVolume;
-        audioElements.gameOverSound.load();
-    }
-    
-    // BGMコントロール設定
-    const bgmToggle = document.getElementById('bgmToggle');
-    const volumeSlider = document.getElementById('volumeSlider');
-    
-    bgmToggle.addEventListener('click', toggleBGM);
-    volumeSlider.addEventListener('input', (e) => {
-        const volume = e.target.value / 100;
-        if (audioElements.bgm) {
-            audioElements.bgm.volume = volume;
-            GAME_CONFIG.audio.bgmVolume = volume;
-        }
-    });
-    
-    // 初期音量設定
-    volumeSlider.value = GAME_CONFIG.audio.bgmVolume * 100;
-}
-
-// BGM切り替え
-function toggleBGM() {
-    gameState.bgmEnabled = !gameState.bgmEnabled;
-    const bgmToggle = document.getElementById('bgmToggle');
-    
-    if (gameState.bgmEnabled) {
-        bgmToggle.textContent = '🎵 BGM: ON';
-        playBGM();
-    } else {
-        bgmToggle.textContent = '🔇 BGM: OFF';
-        stopBGM();
-    }
-}
-
-// BGM再生
-function playBGM() {
-    if (gameState.bgmEnabled && audioElements.bgm && !gameState.gameOver) {
-        audioElements.bgm.play().catch(e => {
-            console.log('BGM再生失敗:', e);
-        });
-    }
-}
-
-// BGM停止
-function stopBGM() {
-    if (audioElements.bgm) {
-        audioElements.bgm.pause();
-        audioElements.bgm.currentTime = 0;
-    }
-}
-
-// 効果音再生
-function playSoundEffect(soundName) {
-    const audio = audioElements[soundName];
-    if (audio) {
-        audio.currentTime = 0;
-        audio.play().catch(e => {
-            console.log(`効果音${soundName}再生失敗:`, e);
-        });
-    }
-}
-
-// ユーザーインタラクション後にオーディオを初期化
-function enableAudioOnUserInteraction() {
-    const enableAudio = () => {
-        if (!gameState.audioContext) {
-            // Web Audio API コンテキストを作成（必要に応じて）
-            try {
-                gameState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            } catch (e) {
-                console.log('Web Audio API not supported');
-            }
-        }
-        
-        // BGM自動再生を試行
-        setTimeout(() => {
-            playBGM();
-        }, 1000);
-        
-        // イベントリスナーを削除
-        document.removeEventListener('touchstart', enableAudio);
-        document.removeEventListener('click', enableAudio);
-        document.removeEventListener('keydown', enableAudio);
-    };
-    
-    // 最初のユーザーインタラクションを待つ
-    document.addEventListener('touchstart', enableAudio, { once: true });
-    document.addEventListener('click', enableAudio, { once: true });
-    document.addEventListener('keydown', enableAudio, { once: true });
-}
-
-// 画像の最適サイズを計算する関数
-function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
+  // 画像の最適サイズを計算する関数
+  function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
     const aspectRatio = imgWidth / imgHeight;
     let scale;
     
@@ -651,11 +480,7 @@ function triggerGameOver() {
     
     gameState.gameOver = true;
     
-    // BGM停止と効果音再生
-    stopBGM();
-    playSoundEffect('gameOverSound');
-    
-    // UI更新
+      // UI更新
     document.getElementById('gameOverText').style.display = 'block';
     document.getElementById('controls').classList.add('game-over');
     
@@ -841,8 +666,7 @@ function createRandomAnimal() {
 function dropCurrentAnimal() {
     if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
         gameState.isDropping = true;
-        updateScore();
-        playSoundEffect('dropSound'); // 落下音を再生
+          updateScore();
     }
 }
 
@@ -995,9 +819,6 @@ function setupEventListeners() {
             case 'KeyR':
                 document.getElementById('resetBtn').click();
                 break;
-            case 'KeyM':
-                document.getElementById('bgmToggle').click();
-                break;
         }
     });
     
@@ -1027,10 +848,6 @@ async function startGame() {
     gameState.loadedImages = {};
     gameState.imagesLoaded = false;
 
-    // オーディオ初期化
-    initializeAudio();
-    enableAudioOnUserInteraction();
-
     try {
         const success = await preloadImages(requiredImageFiles, (loaded, total) => {
             loadingText.textContent = `画像を読み込み中... ${loaded}/${total}`;
@@ -1038,10 +855,9 @@ async function startGame() {
 
         if (success) {
             gameState.imagesLoaded = true;
-            loadingText.style.display = 'none';
-            document.getElementById('scoreDisplay').style.display = 'block';
-            document.getElementById('audioControls').style.display = 'flex';
-            document.getElementById('controls').style.display = 'flex';
+              loadingText.style.display = 'none';
+              document.getElementById('scoreDisplay').style.display = 'block';
+              document.getElementById('controls').style.display = 'flex';
 
             initializeGame();
 
@@ -1049,7 +865,7 @@ async function startGame() {
             preloadImages(optionalImageFiles);
 
             console.log('ゲームが開始されました！');
-            console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット、M でBGM切替');
+            console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
             console.log('⚠️ 動物が土台から落ちるとゲームオーバーです！');
         } else {
             loadingText.textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～12.PNG）を確認してください。';
