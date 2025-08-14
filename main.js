@@ -1,3 +1,33 @@
+const bgm = document.getElementById('bgm');
+
+function startBGM() {
+    bgm.play().catch(err => console.log('BGM play failed', err));
+}
+
+document.body.addEventListener('touchstart', startBGM, { once: true });
+document.body.addEventListener('click', startBGM, { once: true });
+
+const muteBtn = document.getElementById('muteBtn');
+if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+        if (bgm.paused) {
+            bgm.play().catch(err => console.log('BGM play failed', err));
+        } else {
+            bgm.pause();
+        }
+    });
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'm') {
+        if (bgm.paused) {
+            bgm.play().catch(err => console.log('BGM play failed', err));
+        } else {
+            bgm.pause();
+        }
+    }
+});
+
 // Service Worker登録
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
