@@ -173,27 +173,27 @@ function checkGameOver() {
 // ゲームオーバー処理
 function triggerGameOver() {
     if (gameState.gameOver) return;
-    
+
     gameState.gameOver = true;
 
-      // UI更新
+    // UI更新
     const controls = document.getElementById('controls');
-    const resetBtn = document.getElementById('resetBtn');
+    const retryBtn = document.getElementById('retryBtn');
 
     document.getElementById('gameOverText').style.display = 'block';
     controls.classList.add('game-over');
 
-    // 操作ボタンを無効化しつつリセットボタンは有効のままにする
+    // 操作ボタンを無効化
     controls.querySelectorAll('button').forEach(btn => {
-        if (btn.id !== 'resetBtn') {
-            btn.disabled = true;
-        }
+        btn.disabled = true;
     });
 
-    resetBtn.disabled = false;
-    resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
-    resetBtn.style.color = 'white';
-    resetBtn.textContent = '🔄 もう一度プレイ';
+    // もう一度プレイボタンを表示
+    retryBtn.style.display = 'inline-block';
+    retryBtn.disabled = false;
+    retryBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
+    retryBtn.style.color = 'white';
+    retryBtn.textContent = '🔄 もう一度プレイ';
 
     // エンジンを停止
     if (gameState.runner) {
@@ -437,16 +437,8 @@ function setupEventListeners() {
             }
         });
     };
-    
+
     document.getElementById('dropBtn').onclick = dropCurrentAnimal;
-    
-    document.getElementById('resetBtn').onclick = () => {
-        // アニメーションフレームをクリア
-        if (gameState.animationFrame) {
-            cancelAnimationFrame(gameState.animationFrame);
-        }
-        location.reload();
-    };
     
     // タッチイベント（スマホ対応）
     ['leftBtn', 'rightBtn', 'rotateLeftBtn', 'rotateRightBtn'].forEach(btnId => {
@@ -487,8 +479,8 @@ function setupEventListeners() {
         btn.addEventListener('mouseleave', stopAction);
     });
     
-    // 落とすボタンとリセットボタンは単発
-    ['dropBtn', 'resetBtn'].forEach(btnId => {
+    // 落とすボタンは単発
+    ['dropBtn'].forEach(btnId => {
         const btn = document.getElementById(btnId);
         btn.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -518,9 +510,6 @@ function setupEventListeners() {
             case 'KeyS':
                 event.preventDefault();
                 document.getElementById('dropBtn').click();
-                break;
-            case 'KeyR':
-                document.getElementById('resetBtn').click();
                 break;
         }
     });
@@ -572,7 +561,7 @@ async function startGame() {
             }
 
             console.log('ゲームが開始されました！');
-            console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
+            console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下');
             console.log('⚠️ 動物が土台から落ちるとゲームオーバーです！');
         } else {
             loadingText.textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～12.PNG）を確認してください。';
@@ -587,7 +576,7 @@ async function startGame() {
     }
 }
 
-document.getElementById('retryBtn').addEventListener('click', startGame);
+document.getElementById('retryBtn').addEventListener('click', () => location.reload());
 
 // ページ読み込み完了後にゲーム開始
 window.addEventListener('DOMContentLoaded', startGame);
