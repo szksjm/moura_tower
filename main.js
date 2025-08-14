@@ -2,10 +2,16 @@ const bgm = document.getElementById('bgm');
 
 function startBGM() {
     console.log('startBGM triggered');
-    bgm.play().catch(err => console.log('BGM play failed', err));
+    bgm.play().then(() => {
+        const prompt = document.getElementById('audioPrompt');
+        if (prompt) {
+            prompt.style.display = 'none';
+        }
+    }).catch(err => console.log('BGM play failed', err));
 }
 
-document.body.addEventListener('touchstart', startBGM, { once: true });
+window.addEventListener('touchstart', startBGM, { once: true });
+window.addEventListener('pointerdown', startBGM, { once: true });
 document.body.addEventListener('click', startBGM, { once: true });
 window.addEventListener('keydown', startBGM, { once: true });
 
