@@ -175,29 +175,36 @@ function triggerGameOver() {
     if (gameState.gameOver) return;
     
     gameState.gameOver = true;
-    
-      // UI更新
+
+    // UI更新
+    const controls = document.getElementById('controls');
+    const resetBtn = document.getElementById('resetBtn');
+
     document.getElementById('gameOverText').style.display = 'block';
-    document.getElementById('controls').classList.add('game-over');
-    
+
+    // 操作ボタンはリセットボタン以外を無効化
+    controls.querySelectorAll('button').forEach(btn => {
+        if (btn !== resetBtn) {
+            btn.disabled = true;
+        }
+    });
+
+    // リセットボタンを強調
+    resetBtn.disabled = false;
+    resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
+    resetBtn.style.color = 'white';
+    resetBtn.textContent = '🔄 もう一度プレイ';
+
     // エンジンを停止
     if (gameState.runner) {
         Runner.stop(gameState.runner);
     }
-    
+
     // 現在の動物をクリア
     gameState.currentBody = null;
     gameState.isDropping = false;
-    
+
     console.log('ゲームオーバー！ 最終スコア:', gameState.score);
-    
-    // 3秒後にリセットボタンを強調
-    setTimeout(() => {
-        const resetBtn = document.getElementById('resetBtn');
-        resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
-        resetBtn.style.color = 'white';
-        resetBtn.textContent = '🔄 もう一度プレイ';
-    }, 3000);
 }
 
 // スコアを更新する関数
