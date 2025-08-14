@@ -183,8 +183,17 @@ function triggerGameOver() {
     document.getElementById('gameOverText').style.display = 'block';
     controls.classList.add('game-over');
 
-    // 操作ボタンを一時的に無効化
-    controls.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    // 操作ボタンを無効化しつつリセットボタンは有効のままにする
+    controls.querySelectorAll('button').forEach(btn => {
+        if (btn.id !== 'resetBtn') {
+            btn.disabled = true;
+        }
+    });
+
+    resetBtn.disabled = false;
+    resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
+    resetBtn.style.color = 'white';
+    resetBtn.textContent = '🔄 もう一度プレイ';
 
     // エンジンを停止
     if (gameState.runner) {
@@ -196,15 +205,6 @@ function triggerGameOver() {
     gameState.isDropping = false;
 
     console.log('ゲームオーバー！ 最終スコア:', gameState.score);
-
-    // 3秒後にリセットボタンを強調して有効化
-    setTimeout(() => {
-        controls.classList.remove('game-over');
-        resetBtn.disabled = false;
-        resetBtn.style.background = 'linear-gradient(145deg, #ff6b6b, #ff5252)';
-        resetBtn.style.color = 'white';
-        resetBtn.textContent = '🔄 もう一度プレイ';
-    }, 3000);
 }
 
 // スコアを更新する関数
