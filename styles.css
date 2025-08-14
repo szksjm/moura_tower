@@ -76,7 +76,6 @@
   
   .game-over {
     opacity: 0.6;
-    pointer-events: none;
   }
   
   .loading {
