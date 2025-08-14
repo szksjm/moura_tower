@@ -417,12 +417,7 @@ function setupEventListeners() {
         // 落下していない場合は重力を無効化
         if (gameState.currentBody && !gameState.isDropping && !gameState.gameOver) {
             Body.setVelocity(gameState.currentBody, { x: 0, y: 0 });
-            Body.setPosition(gameState.currentBody, {
-                x: Math.max(gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x, 
-                          Math.min(GAME_CONFIG.canvas.width - (gameState.currentBody.bounds.max.x - gameState.currentBody.bounds.min.x), 
-                                  gameState.currentBody.position.x)),
-                y: gameState.currentBody.position.y
-            });
+            // Removed horizontal position clamping to allow free movement
         }
         
         // 落下中の動物が静止したら次の動物を生成
