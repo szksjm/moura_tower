@@ -6,7 +6,7 @@ const PRECACHE_URLS = [
   'main.js',
   'public/manifest.json',
   'public/icon.svg',
-  'sample/matter.min.js'
+  'https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js'
 ];
 
 self.addEventListener('install', event => {
