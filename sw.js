@@ -1,4 +1,4 @@
-const CACHE_NAME = 'animal-tower-v2';
+const CACHE_NAME = 'animal-tower-v3';
 const PRECACHE_URLS = [
   './',
   'index.html',
