@@ -322,12 +322,8 @@ function initializeGame() {
         }
     );
     
-    // 左右の見えない壁を追加
-    const wallThickness = 10;
-    const leftWall = Bodies.rectangle(-wallThickness/2, GAME_CONFIG.canvas.height/2, wallThickness, GAME_CONFIG.canvas.height, { isStatic: true, render: { visible: false } });
-    const rightWall = Bodies.rectangle(GAME_CONFIG.canvas.width + wallThickness/2, GAME_CONFIG.canvas.height/2, wallThickness, GAME_CONFIG.canvas.height, { isStatic: true, render: { visible: false } });
-    
-    Composite.add(gameState.engine.world, [ground, leftWall, rightWall]);
+    // 地面を追加
+    Composite.add(gameState.engine.world, [ground]);
     
     // ランナーの作成と開始
     gameState.runner = Runner.create();
