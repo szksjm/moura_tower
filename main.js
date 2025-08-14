@@ -79,8 +79,9 @@ let gameState = {
   };
 
 // 画像ファイル名
-const requiredImageFiles = ['2.PNG', '3.PNG', '4.PNG', '5.PNG', '6.PNG', '8.PNG', '9.PNG', '11.PNG', '12.PNG'];
-const optionalImageFiles = ['1.PNG', '7.PNG', '10.PNG'];
+// 初期表示に必要な最小限の画像のみを先に読み込み、その他は遅延ロードする
+const initialImageFiles = ['2.PNG', '3.PNG', '4.PNG', '5.PNG'];
+const lazyImageFiles = ['1.PNG', '6.PNG', '7.PNG', '8.PNG', '9.PNG', '10.PNG', '11.PNG', '12.PNG'];
 
   // 画像の最適サイズを計算する関数
   function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
@@ -538,13 +539,13 @@ async function startGame() {
     retryBtn.style.display = 'none';
     loadingText.style.display = 'block';
     loadingText.style.color = '';
-    loadingText.textContent = `画像を読み込み中... 0/${requiredImageFiles.length}`;
+    loadingText.textContent = `画像を読み込み中... 0/${initialImageFiles.length}`;
 
     gameState.loadedImages = {};
     gameState.imagesLoaded = false;
 
     try {
-        const success = await preloadImages(requiredImageFiles, (loaded, total) => {
+        const success = await preloadImages(initialImageFiles, (loaded, total) => {
             loadingText.textContent = `画像を読み込み中... ${loaded}/${total}`;
         });
 
@@ -556,8 +557,12 @@ async function startGame() {
 
             initializeGame();
 
-            // オプション画像を遅延読み込み
-            preloadImages(optionalImageFiles);
+            // 残りの画像をアイドル時に遅延読み込み
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(() => preloadImages(lazyImageFiles));
+            } else {
+                setTimeout(() => preloadImages(lazyImageFiles), 2000);
+            }
 
             console.log('ゲームが開始されました！');
             console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下、R でリセット');
