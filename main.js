@@ -118,8 +118,8 @@ let gameState = {
 
 // 画像ファイル名
 // 初期表示に必要な最小限の画像のみを先に読み込み、その他は遅延ロードする
-const initialImageFiles = ['2.PNG', '3.PNG', '4.PNG', '5.PNG'];
-const lazyImageFiles = ['1.PNG', '6.PNG', '7.PNG', '8.PNG', '9.PNG', '10.PNG', '11.PNG', '12.PNG'];
+const initialImageFiles = ['100.PNG', '101.PNG', '102.PNG'];
+const lazyImageFiles = ['103.PNG', '104.PNG', '105.PNG'];
 
   // 画像の最適サイズを計算する関数
   function calculateOptimalScale(imgWidth, imgHeight, targetSize) {
@@ -593,7 +593,7 @@ async function startGame() {
             console.log('操作: 矢印キー/WASD で移動・回転、スペース/S で落下');
             console.log('⚠️ 動物が土台から落ちるとゲームオーバーです！');
         } else {
-            loadingText.textContent = '画像の読み込みに失敗しました。画像ファイル（1.PNG～12.PNG）を確認してください。';
+            loadingText.textContent = '画像の読み込みに失敗しました。画像ファイル（100.PNG～105.PNG）を確認してください。';
             loadingText.style.color = '#ff0000';
             retryBtn.style.display = 'inline-block';
         }
