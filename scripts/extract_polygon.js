@@ -213,7 +213,13 @@ function processImages() {
   const imageDir = path.resolve('.');
   const polygonDir = path.join(imageDir, 'polygons');
   fs.mkdirSync(polygonDir, { recursive: true });
-  const files = fs.readdirSync(imageDir).filter(f => f.toLowerCase().endsWith('.png'));
+  const allFiles = fs.readdirSync(imageDir).filter(f => f.toLowerCase().endsWith('.png'));
+  const allowList = (process.argv.slice(2).length > 0
+    ? process.argv.slice(2)
+    : ['100.PNG','101.PNG','102.PNG','103.PNG','104.PNG','105.PNG']
+  ).map(f => f.toLowerCase());
+  const files = allFiles.filter(f => allowList.includes(f.toLowerCase()));
+
   files.forEach(file => {
     const filePath = path.join(imageDir, file);
     const buffer = fs.readFileSync(filePath);
