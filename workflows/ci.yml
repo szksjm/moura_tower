@@ -1,9 +1,12 @@
 name: CI
 on:
   pull_request:
-    branches: [dev, main]
+    branches: [ main, dev ]
   push:
-    branches: [dev]
+    branches: [ dev ]
+permissions:
+  contents: read
+  pull-requests: write
 jobs:
   build-test:
     runs-on: ubuntu-latest
@@ -14,12 +17,19 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test -- --ci
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: npm ci
-      - run: npx playwright install --with-deps
-      - run: npm run e2e:ci
+      - name: Start server
+        run: npx http-server -p 5173 -c-1 .
+        timeout-minutes: 1
+        continue-on-error: false
+        background: true
+      - name: E2E
+        run: |
+          npx playwright install --with-deps
+          npm run e2e:ci
+      - name: Lighthouse (perf budget)
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: 'http://localhost:5173/index.html'
+          configPath: './.lighthouserc.json'
+          uploadArtifacts: true
+          runs: 1
