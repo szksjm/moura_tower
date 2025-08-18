@@ -1,0 +1,15 @@
+area:game:
+  - 'main.js'
+  - 'index.html'
+  - 'styles.css'
+area:assets:
+  - 'assets/**'
+area:tests:
+  - 'tests/**'
+  - 'e2e/**'
+deps:
+  - 'package.json'
+  - 'package-lock.json'
+automerge:
+  - 'docs/**'
+  - '.github/**'
