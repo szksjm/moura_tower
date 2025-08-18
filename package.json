@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "dev": "http-server -p 5173 -c-1 .",
+    "lint": "eslint . --ext .js",
+    "test": "jest",
+    "e2e": "playwright test",
+    "e2e:ci": "playwright test --reporter=line"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "jest": "^29.7.0",
+    "@playwright/test": "^1.47.0"
+  }
+}
