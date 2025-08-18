@@ -1,0 +1,21 @@
+name: "🐞 Bug Report"
+description: バグ報告
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: env
+    attributes: { label: 環境, placeholder: "Chrome 126 / iPhone 14 iOS 17 など" }
+  - type: textarea
+    id: repro
+    attributes: { label: 再現手順, placeholder: "1) … 2) …" }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: 期待結果 }
+  - type: textarea
+    id: actual
+    attributes: { label: 実際の結果 }
+  - type: textarea
+    id: capture
+    attributes: { label: スクショ/動画/ログ }
