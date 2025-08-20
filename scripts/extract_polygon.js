@@ -129,7 +129,7 @@ function simplifyPolygon(points, maxVertices) {
 function createPolygonFromImage(png, scale, threshold = 128) {
   const { width, height, data } = png;
   const contourPoints = [];
-  const step = Math.max(1, Math.floor(Math.min(width, height) / 20));
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 40));
 
   for (let y = 0; y < height; y += step) {
     for (let x = 0; x < width; x++) {
@@ -206,7 +206,7 @@ function createPolygonFromImage(png, scale, threshold = 128) {
     return angleA - angleB;
   });
 
-  return simplifyPolygon(contourPoints, 16);
+  return simplifyPolygon(contourPoints, 32);
 }
 
 function processImages() {
